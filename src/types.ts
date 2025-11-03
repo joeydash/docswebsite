@@ -9,5 +9,5 @@ export interface Documentation {
 }
 
 export interface DocumentationResponse {
-  vocallabs_documentation: Documentation[];
+  karlo_documentation: Documentation[];
 }

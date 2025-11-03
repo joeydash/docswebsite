@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Shield, Plus, Trash2, AlertCircle, CheckCircle2, X, Key } from 'lucide-react';
+import {  Shield, Plus, Trash2, AlertCircle, CheckCircle2, X, Key ,Home} from 'lucide-react';
 import useSWR from 'swr';
 import { useAuth } from '../contexts/AuthContext';
 import { GET_API_TOKEN_QUERY, GET_WHITELISTED_IPS_QUERY, UPDATE_WHITELISTED_IPS_MUTATION, executeGraphQLQuery } from '../services/graphql';
@@ -165,15 +165,15 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-          <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
                   onClick={onBack}
                   className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
-                  <ArrowLeft className="w-5 h-5" />
-                  <span className="font-medium">Back</span>
+                  <Home className="w-5 h-5" />
+                 
                 </button>
                 <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
                 <div>
@@ -189,7 +189,7 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
             </div>
           </div>
         </div>
-        <div className="max-w-5xl mx-auto px-6 py-12">
+        <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="space-y-6">
             <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/70 dark:bg-zinc-900/60 backdrop-blur overflow-hidden p-6">
               <SkeletonBox className="h-6 w-32 mb-4" />
@@ -211,17 +211,16 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-          <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
                   onClick={onBack}
                   className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
-                  <ArrowLeft className="w-5 h-5" />
-                  <span className="font-medium">Back</span>
+                  <Home className="w-5 h-5" />
+                 
                 </button>
-
                 <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
 
                 <div>
@@ -274,12 +273,12 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
           <div className="max-w-7xl mx-auto px-6 py-3 my-0">
             <button
-              onClick={onBack}
-              className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Back</span>
-            </button>
+                  onClick={onBack}
+                  className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                >
+                  <Home className="w-5 h-5" />
+              
+                </button>
           </div>
         </div>
         <div className="max-w-5xl mx-auto px-6 py-12">
@@ -307,17 +306,16 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
       {/* Header */}
 <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-  <div className="max-w-5xl mx-auto px-6 py-6">
+  <div className="max-w-7xl mx-auto px-6 py-6">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
         <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="font-medium">Back</span>
-        </button>
-
+                  onClick={onBack}
+                  className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                >
+                  <Home className="w-5 h-5" />
+                 
+                </button>
         <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
 
         <div>

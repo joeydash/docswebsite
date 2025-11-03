@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Webhook, CheckCircle2, AlertCircle, X, Key } from 'lucide-react';
+import { Home, Webhook, CheckCircle2, AlertCircle, X, Key } from 'lucide-react';
 import useSWR from 'swr';
 import { useAuth } from '../contexts/AuthContext';
 import { GET_API_TOKEN_QUERY, GET_WEBHOOK_CONFIG_QUERY, UPDATE_WEBHOOK_CONFIG_MUTATION, executeGraphQLQuery } from '../services/graphql';
@@ -147,15 +147,15 @@ export function Webhooks({ onBack, onNavigateToAPIKeys }: WebhooksProps) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-          <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
                   onClick={onBack}
                   className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
-                  <ArrowLeft className="w-5 h-5" />
-                  <span className="font-medium">Back</span>
+                  <Home className="w-5 h-5" />
+                 
                 </button>
                 <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
                 <div>
@@ -196,15 +196,15 @@ export function Webhooks({ onBack, onNavigateToAPIKeys }: WebhooksProps) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-          <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
                   onClick={onBack}
                   className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
-                  <ArrowLeft className="w-5 h-5" />
-                  <span className="font-medium">Back</span>
+                  <Home className="w-5 h-5" />
+                  
                 </button>
 
                 <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
@@ -257,13 +257,13 @@ export function Webhooks({ onBack, onNavigateToAPIKeys }: WebhooksProps) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-          <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="max-w-7xl mx-auto px-6 py-6">
             <button
               onClick={onBack}
               className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Back</span>
+              <Home className="w-5 h-5" />
+     
             </button>
           </div>
         </div>
@@ -288,7 +288,7 @@ export function Webhooks({ onBack, onNavigateToAPIKeys }: WebhooksProps) {
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-        <div className="max-w-5xl mx-auto px-6 py-6">
+        <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             {/* Left Side - Back Button and Title */}
             <div className="flex items-center gap-4">
@@ -296,8 +296,8 @@ export function Webhooks({ onBack, onNavigateToAPIKeys }: WebhooksProps) {
                 onClick={onBack}
                 className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
               >
-                <ArrowLeft className="w-5 h-5" />
-                <span className="font-medium">Back</span>
+                <Home className="w-5 h-5" />
+              
               </button>
 
               <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />

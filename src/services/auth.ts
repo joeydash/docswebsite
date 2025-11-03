@@ -1,5 +1,5 @@
-const GRAPHQL_ENDPOINT = 'https://db.vocallabs.ai/v1/graphql';
-
+const GRAPHQL_ENDPOINT = 'https://arc.vocallabs.ai/v1/graphql';
+const AUTH_ENDPOINT = "https://db.subspace.money/v1/graphql"
 export interface CountryCode {
   country_code: string;
   phone_code: string;
@@ -79,7 +79,7 @@ export async function getCountryCodes(): Promise<CountryCode[]> {
 
 export async function sendOTP(phone: string): Promise<{ request_id: string; status: string }> {
   const phoneNumber =  `+${phone}`
-  const response = await fetch(GRAPHQL_ENDPOINT, {
+  const response = await fetch(AUTH_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -99,7 +99,7 @@ export async function sendOTP(phone: string): Promise<{ request_id: string; stat
 }
 
 export async function verifyOTP(phone: string, otp: string): Promise<VerifyOTPResponse['verifyOTPV2']> {
-  const response = await fetch(GRAPHQL_ENDPOINT, {
+  const response = await fetch(AUTH_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -138,6 +138,10 @@ export function clearAuthData() {
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('user_id');
   localStorage.removeItem('token_timestamp');
+  localStorage.removeItem('savedAPIKeys');
+  localStorage.removeItem('organizationDetails')
+  localStorage.removeItem('apiKey')
+   window.dispatchEvent(new Event('savedAPIKeys-updated'));
 }
 
 export function isAuthenticated(): boolean {

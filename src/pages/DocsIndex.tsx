@@ -4,6 +4,8 @@ import { format } from 'date-fns';
 import { Documentation } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { Navbar, NavbarRef } from '../components/Navbar';
+import { SavedKeysWarningSide } from '../components/SavedKeysWarningSide';
+
 
 interface DocsIndexProps {
   docs: Documentation[];
@@ -98,6 +100,7 @@ export function DocsIndex({ docs, onNavigate, onNavigateToRoute }: DocsIndexProp
           </div>
         </div>
       </div>
+    <SavedKeysWarningSide position="right" vertical="bottom"  />
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-6 py-12">
@@ -132,6 +135,7 @@ export function DocsIndex({ docs, onNavigate, onNavigateToRoute }: DocsIndexProp
                         {doc.name}
                       </h3>
                       
+
                       <div className="flex items-center gap-1 mt-3 text-sm text-zinc-500 dark:text-zinc-400">
                         <Clock className="w-4 h-4" />
                         <span>Updated {format(new Date(doc.updated_at), 'MMM d, yyyy')}</span>

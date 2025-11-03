@@ -157,7 +157,7 @@ function AppContent() {
 
     return (
       <DocsIndex
-        docs={allDocs.vocallabs_documentation}
+        docs={allDocs.karlo_documentation}
         onNavigate={handleNavigate}
         onNavigateToRoute={handleNavigateToRoute}
       />
@@ -219,7 +219,7 @@ function AppContent() {
     );
   }
 
-  const doc = docData.vocallabs_documentation[0];
+  const doc = docData.karlo_documentation[0];
   if (!doc) {
     return (
       <div className="min-h-screen bg-white dark:bg-zinc-900 flex items-center justify-center">

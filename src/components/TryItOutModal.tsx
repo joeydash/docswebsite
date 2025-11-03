@@ -34,6 +34,55 @@ export function TryItOutModal({ isOpen, onClose, endpoint }: TryItOutModalProps)
   const [clientSecret, setClientSecret] = useState('');
   const [isGettingToken, setIsGettingToken] = useState(false);
 
+React.useEffect(() => {
+  if (!showAuthModal) return;
+
+  try {
+    const savedKeys = JSON.parse(localStorage.getItem('savedAPIKeys') || '[]');
+    const last = savedKeys[savedKeys.length - 1];
+    if (last) {
+      setClientId(last.clientId);
+      setClientSecret(last.clientSecret);
+    }
+
+    // Also check if an API key (token) is already saved
+    const savedApiKey = localStorage.getItem('apiKey');
+    if (savedApiKey) {
+      setEditableHeaders(prev => ({
+        ...prev,
+        Authorization: `Bearer ${savedApiKey}`,
+      }));
+    }
+  } catch (err) {
+    console.error('Error reading saved keys:', err);
+  }
+}, [showAuthModal]);
+
+
+// Add this new useEffect to prefill Authorization header when modal opens
+React.useEffect(() => {
+  if (!isOpen) return;
+
+  try {
+    // Only prefill if Authorization header already exists in the endpoint
+    if (endpoint.headers && endpoint.headers['Authorization']) {
+      const savedApiKey = localStorage.getItem('apiKey');
+      if (savedApiKey) {
+        setEditableHeaders(prev => ({
+          ...prev,
+          Authorization: `Bearer ${savedApiKey}`,
+        }));
+      }
+    }
+  } catch (err) {
+    console.error('Error reading saved API key:', err);
+  }
+}, [isOpen]);
+
+
+
+  
+
   if (!isOpen) return null;
 
   const handleExecute = async () => {
@@ -168,6 +217,8 @@ export function TryItOutModal({ isOpen, onClose, endpoint }: TryItOutModalProps)
 
       const data = await response.json();
       const token = data.authToken || data.token;
+
+      localStorage.setItem('apiKey', token);
 
       // Update Authorization header with the new token
       setEditableHeaders({
@@ -436,18 +487,27 @@ export function TryItOutModal({ isOpen, onClose, endpoint }: TryItOutModalProps)
                 </div>
               </div>
 
-              <div>
-                <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
-                  Response Body
-                </h4>
-                <pre className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 overflow-x-auto text-sm border border-zinc-200 dark:border-zinc-700">
-                  <code className="text-zinc-900 dark:text-zinc-100">
-                    {typeof response.data === 'string'
-                      ? response.data
-                      : JSON.stringify(response.data, null, 2)}
-                  </code>
-                </pre>
-              </div>
+             <div>
+  <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
+    Response Body
+  </h4>
+  <pre className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 overflow-x-auto text-sm border border-zinc-200 dark:border-zinc-700 whitespace-pre-wrap">
+    <code className="text-zinc-900 dark:text-zinc-100">
+      {typeof response.data === 'string'
+        ? (() => {
+            try {
+              // Try to parse and format if it's a JSON string
+              const parsed = JSON.parse(response.data);
+              return JSON.stringify(parsed, null, 2);
+            } catch {
+              // If not JSON, return as is
+              return response.data;
+            }
+          })()
+        : JSON.stringify(response.data, null, 2)}
+    </code>
+  </pre>
+</div>
             </div>
           )}
         </div>

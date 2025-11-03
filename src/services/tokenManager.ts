@@ -94,6 +94,10 @@ export function clearTokens() {
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('user_id');
   localStorage.removeItem('token_timestamp');
+  localStorage.removeItem('savedAPIKeys');
+  localStorage.removeItem('organizationDetails')
+  localStorage.removeItem('apiKey')
+   window.dispatchEvent(new Event('savedAPIKeys-updated'));
 
   clearRefreshTimer();
 }

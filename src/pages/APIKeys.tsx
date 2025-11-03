@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Copy, Key, Plus, CheckCircle2, AlertCircle, X, Download, AlertTriangle, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft,Home, Copy, Key, Plus, CheckCircle2, AlertCircle, X, Download, AlertTriangle, Save, Trash2 } from 'lucide-react';
 import useSWR from 'swr';
 import { useAuth } from '../contexts/AuthContext';
 import { GET_API_TOKEN_QUERY, GENERATE_API_TOKEN_MUTATION, executeGraphQLQuery } from '../services/graphql';
 import { Navbar } from '../components/Navbar';
 import { SkeletonCard } from '../components/ui/SkeletonLoader';
+import { SavedKeysWarningSide } from '../components/SavedKeysWarningSide';
 
 interface APIKeyData {
   id: string;
@@ -122,29 +123,33 @@ export function APIKeys({ onBack }: APIKeysProps) {
     window.URL.revokeObjectURL(url);
   };
 
-  const handleSaveToBrowser = () => {
-    if (!newKeyData) return;
+ const handleSaveToBrowser = () => {
+  if (!newKeyData) return;
 
-    const updatedKeys = [...savedKeys, newKeyData];
-    setSavedKeys(updatedKeys);
-    localStorage.setItem('savedAPIKeys', JSON.stringify(updatedKeys));
-    handleCloseModal();
-  };
+  const updatedKeys = [...savedKeys, newKeyData];
+  setSavedKeys(updatedKeys);
+  localStorage.setItem('savedAPIKeys', JSON.stringify(updatedKeys));
+  
+  // Dispatch custom event to notify SavedKeysWarningSide
+  window.dispatchEvent(new Event('savedAPIKeys-updated'));
+  
+  handleCloseModal();
+};
 
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-          <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
                   onClick={onBack}
                   className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
-                  <ArrowLeft className="w-5 h-5" />
-                  <span className="font-medium">Back</span>
+                  <Home className="w-5 h-5" />
+                
                 </button>
                 <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
                 <div>
@@ -174,13 +179,13 @@ export function APIKeys({ onBack }: APIKeysProps) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-          <div className="max-w-5xl mx-auto px-6 py-5">
+          <div className="max-w-7xl mx-auto px-6 py-5">
             <button
               onClick={onBack}
               className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="font-medium">Back</span>
+              <Home className="w-5 h-5" />
+   
             </button>
           </div>
         </div>
@@ -207,7 +212,7 @@ export function APIKeys({ onBack }: APIKeysProps) {
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-        <div className="max-w-5xl mx-auto px-6 py-6">
+        <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             {/* Left Side - Back Button and Title */}
             <div className="flex items-center gap-4">
@@ -215,8 +220,8 @@ export function APIKeys({ onBack }: APIKeysProps) {
                 onClick={onBack}
                 className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
               >
-                <ArrowLeft className="w-5 h-5" />
-                <span className="font-medium">Back</span>
+                <Home className="w-5 h-5" />
+         
               </button>
 
               <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
@@ -345,37 +350,10 @@ export function APIKeys({ onBack }: APIKeysProps) {
                 Keep your API keys secure and never share them publicly. Rotate your keys regularly and use environment variables to store them in your applications.
               </p>
             </div>
+             <SavedKeysWarningSide position="right" vertical="bottom" 
+ />
 
-            {/* Browser Storage Warning */}
-            {savedKeys.length > 0 && (
-              <div className="rounded-xl bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800/40 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-0.5">
-                    <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-yellow-900 dark:text-yellow-100 mb-1">
-                      WARNING!
-                    </h3>
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200/90 leading-relaxed">
-                     API credentials are stored in your browser. 
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to delete all ${savedKeys.length} saved credential${savedKeys.length > 1 ? 's' : ''} from your browser?`)) {
-                        setSavedKeys([]);
-                        localStorage.removeItem('savedAPIKeys');
-                      }
-                    }}
-                    className="flex-shrink-0 p-1.5 rounded-md hover:bg-yellow-100 dark:hover:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 transition-colors"
-                    title="Delete all saved credentials"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
+           
           </div>
         )}
       </div>

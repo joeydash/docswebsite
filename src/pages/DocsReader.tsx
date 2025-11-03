@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Copy,
   Check,
-  ArrowLeft
+
+  Home
 } from 'lucide-react';
 import { useTheme } from '../hooks/useDarkMode';
 import { useEnvironment } from '../hooks/useEnvironment';
@@ -534,52 +535,54 @@ export function DocsReader({ doc, onBack }: DocsReaderProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
       {/* Header - replaced with IPWhitelist-style header for consistency */}
-      <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-        <div className="max-w-5xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={onBack}
-                className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                <span className="font-medium">Back</span>
-              </button>
+    <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
+  <div className="max-w-7xl mx-auto px-6 py-6">
+    <div className="flex items-center justify-between gap-8">
+      {/* Left section - Home and Title */}
+      <div className="flex items-center gap-4 flex-shrink-0">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+        >
+          <Home className="w-5 h-5" />
 
-              <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
+        </button>
 
-              <div>
-                <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                  {normalizedYaml.title || doc.name}
-                </h1>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {normalizedYaml?.description || 'API documentation and code samples'}
-                </p>
-              </div>
-            </div>
+        <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
 
-            <div className="flex items-center gap-4">
-              {/* Environment Selector */}
-              {availableEnvs.length > 0 && (
-                <select
-                  value={selectedEnv}
-                  onChange={(e) => setSelectedEnv(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/70 dark:bg-zinc-900/60 backdrop-blur focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-zinc-900 dark:text-zinc-100"
-                >
-                  {availableEnvs.map((env) => (
-                    <option key={env} value={env}>
-                      {env}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Navbar Component */}
-              <Navbar />
-            </div>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+            {normalizedYaml.title || doc.name}
+          </h1>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            {normalizedYaml?.description || 'API documentation and code samples'}
+          </p>
         </div>
       </div>
+
+      {/* Right section - Environment Selector and Navbar */}
+      <div className="flex items-center gap-4 flex-shrink-0 ml-auto">
+        {/* Environment Selector */}
+        {availableEnvs.length > 0 && (
+          <select
+            value={selectedEnv}
+            onChange={(e) => setSelectedEnv(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/70 dark:bg-zinc-900/60 backdrop-blur focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-zinc-900 dark:text-zinc-100"
+          >
+            {availableEnvs.map((env) => (
+              <option key={env} value={env}>
+                {env}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Navbar Component */}
+        <Navbar />
+      </div>
+    </div>
+  </div>
+</div>
 
       <div className="flex">
         {/* Sidebar */}
