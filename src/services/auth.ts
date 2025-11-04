@@ -1,4 +1,4 @@
-const GRAPHQL_ENDPOINT = 'https://arc.vocallabs.ai/v1/graphql';
+const GRAPHQL_ENDPOINT = 'https://db.vocallabs.ai/v1/graphql';
 const AUTH_ENDPOINT = "https://db.subspace.money/v1/graphql"
 export interface CountryCode {
   country_code: string;
