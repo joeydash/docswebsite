@@ -68,18 +68,21 @@ interface WebhooksProps {
 }
 
 export function Webhooks({ onBack, onNavigateToAPIKeys }: WebhooksProps) {
-  const { userId, tokenData, isAuthenticated } = useAuth();
+  const { userId, tokenData, isAuthenticated,isAuthLoading } = useAuth();
   const [webhookUrl, setWebhookUrl] = useState('');
   const [isEnabled, setIsEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      onBack();
-    }
-  }, [isAuthenticated, onBack]);
+
+
+useEffect(() => {
+  if (!isAuthLoading && isAuthenticated === false) {
+    onBack();
+  }
+}, [isAuthLoading, isAuthenticated, onBack]);
+
 
   const { data: apiTokenCheck, isLoading: isCheckingToken } = useSWR<APITokenCheckResponse>(
     userId && tokenData?.auth_token ? ['api-token-check', userId, tokenData.auth_token] : null,
@@ -163,7 +166,7 @@ export function Webhooks({ onBack, onNavigateToAPIKeys }: WebhooksProps) {
                     Webhooks
                   </h1>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    Configure webhooks for real-time notifications
+                    Configure webhook endpoints to receive real-time updates
                   </p>
                 </div>
               </div>

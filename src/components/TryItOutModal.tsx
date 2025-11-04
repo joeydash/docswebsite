@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { X, Play, Loader2, Key } from 'lucide-react';
+import { X, Play, Loader2, Key, AlertCircle, Shield } from 'lucide-react';
 
 interface TryItOutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onNavigateToAPIKeys?: () => void;
   endpoint: {
     method: string;
     url: string;
@@ -14,7 +15,7 @@ interface TryItOutModalProps {
   };
 }
 
-export function TryItOutModal({ isOpen, onClose, endpoint }: TryItOutModalProps) {
+export function TryItOutModal({ isOpen, onClose, onNavigateToAPIKeys, endpoint }: TryItOutModalProps) {
   const [isExecuting, setIsExecuting] = useState(false);
   const [response, setResponse] = useState<any>(null);
   const [responseError, setResponseError] = useState('');
@@ -33,39 +34,63 @@ export function TryItOutModal({ isOpen, onClose, endpoint }: TryItOutModalProps)
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [isGettingToken, setIsGettingToken] = useState(false);
+  const [hasCredentials, setHasCredentials] = useState(false);
+  const [authError, setAuthError] = useState<{ message: string; isIPError?: boolean } | null>(null);
 
-React.useEffect(() => {
-  if (!showAuthModal) return;
+  // --- ADD: resolveBodyWithCreds (must be before useEffect that uses it) ---
+  const resolveBodyWithCreds = (body: string) => {
+    if (!body) return body || '';
 
-  try {
     const savedKeys = JSON.parse(localStorage.getItem('savedAPIKeys') || '[]');
-    const last = savedKeys[savedKeys.length - 1];
-    if (last) {
-      setClientId(last.clientId);
-      setClientSecret(last.clientSecret);
+    const lastSaved = savedKeys[savedKeys.length - 1] || {};
+    const storedClientId = lastSaved.clientId || clientId || '';
+    const storedClientSecret = lastSaved.clientSecret || clientSecret || '';
+
+    // Try JSON merge first
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed && typeof parsed === 'object') {
+        const mutated = { ...parsed };
+
+        // correct JSON key checks (clientId / clientSecret)
+        if ('clientId' in mutated && (!mutated.clientId || mutated.clientId === '{{clientId}}' || mutated.clientId === 'CLIENT_ID')) {
+          if (storedClientId) mutated.clientId = storedClientId;
+        }
+        if ('clientSecret' in mutated && (!mutated.clientSecret || mutated.clientSecret === '{{clientSecret}}' || mutated.clientSecret === 'CLIENT_SECRET')) {
+          if (storedClientSecret) mutated.clientSecret = storedClientSecret;
+        }
+
+        return JSON.stringify(mutated, null, 2);
+      }
+    } catch {
+      // not JSON -> continue to placeholder replacement
     }
 
-    // Also check if an API key (token) is already saved
-    const savedApiKey = localStorage.getItem('apiKey');
-    if (savedApiKey) {
-      setEditableHeaders(prev => ({
-        ...prev,
-        Authorization: `Bearer ${savedApiKey}`,
-      }));
+    // Placeholder / raw-text replacement (covers {{clientId}} and literal CLIENT_ID)
+    let replaced = body;
+    if (storedClientId) {
+      replaced = replaced.replace(/{{\s*clientId\s*}}/g, storedClientId);
+      replaced = replaced.replace(/\bCLIENT_ID\b/g, storedClientId);
     }
-  } catch (err) {
-    console.error('Error reading saved keys:', err);
-  }
-}, [showAuthModal]);
+    if (storedClientSecret) {
+      replaced = replaced.replace(/{{\s*clientSecret\s*}}/g, storedClientSecret);
+      replaced = replaced.replace(/\bCLIENT_SECRET\b/g, storedClientSecret);
+    }
 
+    return replaced;
+  };
 
-// Add this new useEffect to prefill Authorization header when modal opens
-React.useEffect(() => {
-  if (!isOpen) return;
+  React.useEffect(() => {
+    if (!showAuthModal) return;
 
-  try {
-    // Only prefill if Authorization header already exists in the endpoint
-    if (endpoint.headers && endpoint.headers['Authorization']) {
+    try {
+      const savedKeys = JSON.parse(localStorage.getItem('savedAPIKeys') || '[]');
+      const last = savedKeys[savedKeys.length - 1];
+      if (last) {
+        setClientId(last.clientId);
+        setClientSecret(last.clientSecret);
+      }
+
       const savedApiKey = localStorage.getItem('apiKey');
       if (savedApiKey) {
         setEditableHeaders(prev => ({
@@ -73,15 +98,51 @@ React.useEffect(() => {
           Authorization: `Bearer ${savedApiKey}`,
         }));
       }
+    } catch (err) {
+      console.error('Error reading saved keys:', err);
     }
-  } catch (err) {
-    console.error('Error reading saved API key:', err);
-  }
-}, [isOpen]);
+  }, [showAuthModal]);
 
+  React.useEffect(() => {
+    if (!isOpen) return;
 
+    try {
+      const savedApiKey = localStorage.getItem('apiKey');
+      const savedKeys = JSON.parse(localStorage.getItem('savedAPIKeys') || '[]');
+      
+      const hasApiKey = !!savedApiKey;
+      const hasClientCredentials = savedKeys.length > 0 && savedKeys[savedKeys.length - 1]?.clientId;
+      
+      setHasCredentials(hasApiKey || hasClientCredentials);
 
-  
+      if (endpoint.headers && endpoint.headers['Authorization'] && savedApiKey) {
+        setEditableHeaders(prev => ({
+          ...prev,
+          Authorization: `Bearer ${savedApiKey}`,
+        }));
+      }
+    } catch (err) {
+      console.error('Error reading saved API key:', err);
+      setHasCredentials(false);
+    }
+  }, [isOpen]);
+
+  // --- ADD: populate body when modal opens ---
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    try {
+      // prefer endpoint.body (the template) but fallback to current editableBody
+      const template = endpoint.body ?? editableBody ?? '';
+      const resolved = resolveBodyWithCreds(template);
+      if (resolved && resolved !== editableBody) {
+        setEditableBody(resolved);
+      }
+    } catch (err) {
+      console.error('Error populating request body on open:', err);
+    }
+  }, [isOpen, endpoint.body]); // run when modal opens or endpoint template changes
+
 
   if (!isOpen) return null;
 
@@ -100,7 +161,6 @@ React.useEffect(() => {
         options.body = editableBody;
       }
 
-      // Replace path parameters in URL
       let urlWithPathParams = editableUrl;
       Object.entries(editablePathParams).forEach(([key, value]) => {
         urlWithPathParams = urlWithPathParams.replace(`{${key}}`, encodeURIComponent(value));
@@ -198,8 +258,8 @@ React.useEffect(() => {
     }
 
     setIsGettingToken(true);
+    setAuthError(null);
     try {
-      // TODO: Replace with actual token endpoint
       const response = await fetch('https://api.superflow.run/b2b/createAuthToken', {
         method: 'POST',
         headers: {
@@ -211,16 +271,42 @@ React.useEffect(() => {
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to get token');
+        const errorMessage = data.message || data.error || 'Failed to get token';
+        
+        // Check if error is related to IP whitelist
+        const isIPError = errorMessage.toLowerCase().includes('not whitelisted') || 
+                         errorMessage.toLowerCase().includes('ip') && errorMessage.toLowerCase().includes('whitelist') ||
+                         response.status === 403;
+        
+        // Extract a cleaner message if it's an IP error
+        let displayMessage = errorMessage;
+        if (isIPError) {
+          // Extract just the main message without the URL
+          displayMessage = errorMessage.split('.')[0] + '.';
+        }
+        
+        setAuthError({
+          message: displayMessage,
+          isIPError: isIPError
+        });
+        return;
       }
 
-      const data = await response.json();
       const token = data.authToken || data.token;
+
+      if (!token) {
+        setAuthError({
+          message: 'No token received from server',
+          isIPError: false
+        });
+        return;
+      }
 
       localStorage.setItem('apiKey', token);
 
-      // Update Authorization header with the new token
       setEditableHeaders({
         ...editableHeaders,
         Authorization: `Bearer ${token}`,
@@ -229,11 +315,28 @@ React.useEffect(() => {
       setShowAuthModal(false);
       setClientId('');
       setClientSecret('');
+      setAuthError(null);
     } catch (error: any) {
-      alert(error.message || 'Failed to get auth token');
+      setAuthError({
+        message: error.message || 'Failed to connect to authentication server',
+        isIPError: false
+      });
     } finally {
       setIsGettingToken(false);
     }
+  };
+
+  const handleNavigateToCredentials = () => {
+    if (onNavigateToAPIKeys) {
+      onNavigateToAPIKeys();
+    }
+  };
+
+  const handleNavigateToIPWhitelist = () => {
+    setShowAuthModal(false);
+    onClose();
+    window.history.pushState({}, '', '/ip-whitelist');
+    window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
   return (
@@ -255,6 +358,39 @@ React.useEffect(() => {
         </div>
 
         <div className="p-6 space-y-6">
+          {/* ---------- UPDATED: show credentials banner whenever hasCredentials is false ---------- */}
+          {!hasCredentials && (
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-1">
+                    API Credentials Required
+                  </div>
+                  <div className="text-sm text-amber-700 dark:text-amber-300 mb-3">
+                    This endpoint may require authentication. Get your API credentials first to test this endpoint.
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleNavigateToCredentials}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium text-sm shadow-sm"
+                    >
+                      <Key className="w-4 h-4" />
+                      Get API Credentials
+                    </button>
+                   {/* <button
+                      onClick={() => setShowAuthModal(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-zinc-800 text-amber-700 dark:text-amber-200 border border-amber-200 dark:border-amber-800 rounded-lg transition-colors text-sm"
+                    >
+                      <Key className="w-4 h-4" />
+                      Enter Credentials
+                    </button> */}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
               Request URL
@@ -367,7 +503,7 @@ React.useEffect(() => {
                 Headers
               </label>
               <div className="flex items-center gap-2">
-                {editableHeaders['Authorization'] && (
+                {editableHeaders['Authorization'] && hasCredentials && (
                   <button
                     onClick={() => setShowAuthModal(true)}
                     className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium"
@@ -487,27 +623,25 @@ React.useEffect(() => {
                 </div>
               </div>
 
-             <div>
-  <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
-    Response Body
-  </h4>
-  <pre className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 overflow-x-auto text-sm border border-zinc-200 dark:border-zinc-700 whitespace-pre-wrap">
-    <code className="text-zinc-900 dark:text-zinc-100">
-      {typeof response.data === 'string'
-        ? (() => {
-            try {
-              // Try to parse and format if it's a JSON string
-              const parsed = JSON.parse(response.data);
-              return JSON.stringify(parsed, null, 2);
-            } catch {
-              // If not JSON, return as is
-              return response.data;
-            }
-          })()
-        : JSON.stringify(response.data, null, 2)}
-    </code>
-  </pre>
-</div>
+              <div>
+                <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
+                  Response Body
+                </h4>
+                <pre className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 overflow-x-auto text-sm border border-zinc-200 dark:border-zinc-700 whitespace-pre-wrap">
+                  <code className="text-zinc-900 dark:text-zinc-100">
+                    {typeof response.data === 'string'
+                      ? (() => {
+                          try {
+                            const parsed = JSON.parse(response.data);
+                            return JSON.stringify(parsed, null, 2);
+                          } catch {
+                            return response.data;
+                          }
+                        })()
+                      : JSON.stringify(response.data, null, 2)}
+                  </code>
+                </pre>
+              </div>
             </div>
           )}
         </div>
@@ -523,6 +657,7 @@ React.useEffect(() => {
                   setShowAuthModal(false);
                   setClientId('');
                   setClientSecret('');
+                  setAuthError(null);
                 }}
                 className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >
@@ -531,6 +666,52 @@ React.useEffect(() => {
             </div>
 
             <div className="p-6 space-y-4">
+              {authError && (
+                <div className={`rounded-xl p-4 border ${
+                  authError.isIPError
+                    ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'
+                    : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                      authError.isIPError
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`} />
+                    <div className="flex-1">
+                      <div className={`text-sm font-medium mb-1 ${
+                        authError.isIPError
+                          ? 'text-amber-900 dark:text-amber-100'
+                          : 'text-red-900 dark:text-red-100'
+                      }`}>
+                        {authError.isIPError ? 'IP Address Not Whitelisted' : 'Authentication Error'}
+                      </div>
+                      <div className={`text-sm mb-3 ${
+                        authError.isIPError
+                          ? 'text-amber-700 dark:text-amber-300'
+                          : 'text-red-700 dark:text-red-300'
+                      }`}>
+                      
+                        {authError.isIPError && (
+                          <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                            You need to whitelist your IP address to access the API.
+                          </div>
+                        )}
+                      </div>
+                      {authError.isIPError && (
+                        <button
+                          onClick={handleNavigateToIPWhitelist}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium text-sm shadow-sm"
+                        >
+                          <Shield className="w-4 h-4" />
+                          Go to IP Whitelist
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
                   Client ID
@@ -563,6 +744,7 @@ React.useEffect(() => {
                     setShowAuthModal(false);
                     setClientId('');
                     setClientSecret('');
+                    setAuthError(null);
                   }}
                   className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium transition-colors"
                 >

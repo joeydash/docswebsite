@@ -77,6 +77,7 @@ export function SavedKeysWarningSide({
               onClick={() => {
                 if (confirm(`Delete all ${count} saved credential${count > 1 ? 's' : ''}?`)) {
                   localStorage.removeItem('savedAPIKeys');
+                  localStorage.removeItem('apiKey')
                   window.dispatchEvent(new Event('savedAPIKeys-updated'));
                   readCount();
                 }

@@ -6,6 +6,7 @@ export interface Documentation {
   created_at: string;
   image_url?: string;
   name: string;
+   platform?: string; 
 }
 
 export interface DocumentationResponse {

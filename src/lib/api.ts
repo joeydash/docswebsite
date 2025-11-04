@@ -19,6 +19,7 @@ export async function fetchAllDocumentation(): Promise<DocumentationResponse> {
         created_at
         updated_at
         allowed_urls
+        platform
       }
     }
   `;
@@ -66,6 +67,7 @@ export async function fetchDocumentation(path: string): Promise<DocumentationRes
         name
         image_url
         updated_at
+        platform
       }
     }
   `;

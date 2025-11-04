@@ -1,5 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft,Home, Copy, Key, Plus, CheckCircle2, AlertCircle, X, Download, AlertTriangle, Save, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Home,
+  Copy,
+  Key,
+  Plus,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Download,
+  AlertTriangle,
+  Save,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import useSWR from 'swr';
 import { useAuth } from '../contexts/AuthContext';
 import { GET_API_TOKEN_QUERY, GENERATE_API_TOKEN_MUTATION, executeGraphQLQuery } from '../services/graphql';
@@ -44,12 +59,13 @@ interface APIKeysProps {
 }
 
 export function APIKeys({ onBack }: APIKeysProps) {
-  const { userId, tokenData, isAuthenticated } = useAuth();
+  const { userId, tokenData, isAuthenticated ,isAuthLoading} = useAuth();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [newKeyData, setNewKeyData] = useState<{ clientId: string; clientSecret: string } | null>(null);
   const [showNewKeyModal, setShowNewKeyModal] = useState(false);
   const [savedKeys, setSavedKeys] = useState<{ clientId: string; clientSecret: string }[]>([]);
+  const [showTestAPITips, setShowTestAPITips] = useState(false); // <-- toggles collapse
 
   useEffect(() => {
     const stored = localStorage.getItem('savedAPIKeys');
@@ -62,11 +78,14 @@ export function APIKeys({ onBack }: APIKeysProps) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      onBack();
-    }
-  }, [isAuthenticated, onBack]);
+
+
+useEffect(() => {
+  if (!isAuthLoading && isAuthenticated === false) {
+    onBack();
+  }
+}, [isAuthLoading, isAuthenticated, onBack]);
+
 
   const { data, error, isLoading, mutate } = useSWR<APIKeysResponse>(
     userId && tokenData?.auth_token ? ['api-keys', userId, tokenData.auth_token] : null,
@@ -123,19 +142,18 @@ export function APIKeys({ onBack }: APIKeysProps) {
     window.URL.revokeObjectURL(url);
   };
 
- const handleSaveToBrowser = () => {
-  if (!newKeyData) return;
+  const handleSaveToBrowser = () => {
+    if (!newKeyData) return;
 
-  const updatedKeys = [...savedKeys, newKeyData];
-  setSavedKeys(updatedKeys);
-  localStorage.setItem('savedAPIKeys', JSON.stringify(updatedKeys));
-  
-  // Dispatch custom event to notify SavedKeysWarningSide
-  window.dispatchEvent(new Event('savedAPIKeys-updated'));
-  
-  handleCloseModal();
-};
-
+    const updatedKeys = [...savedKeys, newKeyData];
+    setSavedKeys(updatedKeys);
+    localStorage.setItem('savedAPIKeys', JSON.stringify(updatedKeys));
+    
+    // Dispatch custom event to notify SavedKeysWarningSide
+    window.dispatchEvent(new Event('savedAPIKeys-updated'));
+    
+    handleCloseModal();
+  };
 
   if (isLoading) {
     return (
@@ -149,7 +167,6 @@ export function APIKeys({ onBack }: APIKeysProps) {
                   className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
                   <Home className="w-5 h-5" />
-                
                 </button>
                 <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
                 <div>
@@ -185,7 +202,6 @@ export function APIKeys({ onBack }: APIKeysProps) {
               className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             >
               <Home className="w-5 h-5" />
-   
             </button>
           </div>
         </div>
@@ -221,7 +237,6 @@ export function APIKeys({ onBack }: APIKeysProps) {
                 className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
               >
                 <Home className="w-5 h-5" />
-         
               </button>
 
               <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
@@ -294,6 +309,76 @@ export function APIKeys({ onBack }: APIKeysProps) {
               </button>
             </div>
 
+            {/* Collapsible Notice for Testing APIs - Only show if no saved keys */}
+            {savedKeys.length === 0 && (
+              <div className="rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 p-0 shadow-sm overflow-hidden">
+                {/* Header (clickable) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setShowTestAPITips((s) => !s)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowTestAPITips((s) => !s); }}
+                  className="flex items-center justify-between gap-4 p-4 cursor-pointer"
+                  aria-expanded={showTestAPITips}
+                  aria-controls="test-api-tips"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/50">
+                      <AlertCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-0.5">
+                        Want to Test APIs?
+                      </h3>
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        Save your API credentials to use the "Try It Out" feature.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-blue-700 dark:text-blue-200 hidden md:inline">
+                      {showTestAPITips ? 'Hide details' : 'Show details'}
+                    </span>
+                    {showTestAPITips ? <ChevronUp className="w-5 h-5 text-blue-700" /> : <ChevronDown className="w-5 h-5 text-blue-700" />}
+                  </div>
+                </div>
+
+                {/* Collapsible content */}
+                <div
+                  id="test-api-tips"
+                  className="px-6 pb-6 transition-[max-height,opacity] duration-300 ease-in-out"
+                  style={{
+                    maxHeight: showTestAPITips ? 800 : 0,
+                    opacity: showTestAPITips ? 1 : 0,
+                  }}
+                >
+                  <div className="bg-white/60 dark:bg-zinc-900/40 rounded-xl p-4 border border-blue-200/50 dark:border-blue-800/50">
+                    <p className="text-blue-800 dark:text-blue-200 leading-relaxed mb-4">
+                      To use the "Try It Out" feature and test API endpoints directly in your browser, you need to save your API credentials. Client secrets are only shown once during key generation.
+                    </p>
+                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                      📝 How to get started:
+                    </p>
+                    <ol className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+                      <li className="flex items-start gap-2">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">1</span>
+                        <span>Click "Generate New Key" button above</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">2</span>
+                        <span>When the modal appears, click "Save in Browser" to store your credentials locally</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">3</span>
+                        <span>Your credentials will be saved securely in your browser and auto-filled when testing APIs</span>
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* API Keys List */}
             {apiKeys.map((apiKey) => (
               <div
@@ -340,7 +425,6 @@ export function APIKeys({ onBack }: APIKeysProps) {
               </div>
             ))}
 
-
             {/* Security Notice */}
             <div className="rounded-2xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 p-6">
               <h3 className="text-lg font-semibold text-sky-900 dark:text-sky-100 mb-3">
@@ -350,10 +434,8 @@ export function APIKeys({ onBack }: APIKeysProps) {
                 Keep your API keys secure and never share them publicly. Rotate your keys regularly and use environment variables to store them in your applications.
               </p>
             </div>
-             <SavedKeysWarningSide position="right" vertical="bottom" 
- />
-
-           
+            
+            <SavedKeysWarningSide position="right" vertical="bottom" />
           </div>
         )}
       </div>

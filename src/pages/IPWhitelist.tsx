@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {  Shield, Plus, Trash2, AlertCircle, CheckCircle2, X, Key ,Home} from 'lucide-react';
+import { Shield, Plus, Trash2, AlertCircle, CheckCircle2, X, Key, Home, Wifi } from 'lucide-react';
 import useSWR from 'swr';
 import { useAuth } from '../contexts/AuthContext';
 import { GET_API_TOKEN_QUERY, GET_WHITELISTED_IPS_QUERY, UPDATE_WHITELISTED_IPS_MUTATION, executeGraphQLQuery } from '../services/graphql';
@@ -54,6 +54,33 @@ function validateIPAddress(ip: string): boolean {
   return ipv4Regex.test(ip) || ipv6Regex.test(ip);
 }
 
+function validateCIDR(cidr: string): boolean {
+  // IPv4 CIDR basic validation (e.g., 0.0.0.0/0 or 192.168.0.0/24)
+  const ipv4CidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+  // IPv6 CIDR basic validation (e.g., ::/0 or 2001:db8::/32)
+  const ipv6CidrRegex = /^[0-9a-fA-F:]+\/\d{1,3}$/;
+
+  if (ipv4CidrRegex.test(cidr)) {
+    const [addr] = cidr.split('/');
+    const parts = addr.split('.').map(Number);
+    if (parts.some(p => p < 0 || p > 255)) return false;
+    const prefix = Number(cidr.split('/')[1]);
+    return prefix >= 0 && prefix <= 32;
+  }
+
+  if (ipv6CidrRegex.test(cidr)) {
+    const prefix = Number(cidr.split('/')[1]);
+    return prefix >= 0 && prefix <= 128;
+  }
+
+  return false;
+}
+
+function isValidIPOrCIDR(value: string): boolean {
+  // allow plain IPs, IPv6, or CIDR (eg. 0.0.0.0/0 or ::/0)
+  return validateIPAddress(value) || validateCIDR(value);
+}
+
 interface APITokenCheckResponse {
   whatsub_b2b_client: { id: string }[];
 }
@@ -69,23 +96,39 @@ async function checkAPIToken(
   );
 }
 
+async function fetchCurrentIP(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    return data.ip || null;
+  } catch (error) {
+    console.error(`Error fetching IP from ${url}:`, error);
+    return null;
+  }
+}
+
 interface IPWhitelistProps {
   onBack: () => void;
   onNavigateToAPIKeys?: () => void;
 }
 
 export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
-  const { userId, tokenData, isAuthenticated } = useAuth();
+ 
   const [newIP, setNewIP] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isRemoving, setIsRemoving] = useState<string | null>(null);
+  const [isAutoWhitelisting, setIsAutoWhitelisting] = useState(false);
+  const [isWhitelistingAll, setIsWhitelistingAll] = useState(false);
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      onBack();
-    }
-  }, [isAuthenticated, onBack]);
+  const { userId, tokenData, isAuthenticated, isAuthLoading } = useAuth();
+
+// Only redirect after auth initialization finished and user is unauthenticated
+useEffect(() => {
+  if (!isAuthLoading && isAuthenticated === false) {
+    onBack();
+  }
+}, [isAuthLoading, isAuthenticated, onBack]);
 
   const { data: apiTokenCheck, isLoading: isCheckingToken } = useSWR<APITokenCheckResponse>(
     userId && tokenData?.auth_token ? ['api-token-check', userId, tokenData.auth_token] : null,
@@ -107,8 +150,8 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
 
     const ipToAdd = newIP.trim();
 
-    if (!validateIPAddress(ipToAdd)) {
-      showToast('error', 'Invalid IP address format');
+    if (!isValidIPOrCIDR(ipToAdd)) {
+      showToast('error', 'Invalid IP address or CIDR format');
       return;
     }
 
@@ -132,6 +175,94 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
       showToast('error', 'Failed to add IP address');
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  const handleWhitelistMyIP = async () => {
+    if (!userId || !tokenData?.auth_token || isAutoWhitelisting) return;
+
+    setIsAutoWhitelisting(true);
+    try {
+      // Fetch both IPv4 and IPv6 addresses
+      const [ipv4, ipv6] = await Promise.all([
+        fetchCurrentIP('https://api.ipify.org?format=json'),
+        fetchCurrentIP('https://api64.ipify.org?format=json')
+      ]);
+
+      const clientData = data?.whatsub_b2b_client[0];
+      const currentIPs = clientData?.ips || [];
+      const ipsToAdd: string[] = [];
+      const alreadyWhitelisted: string[] = [];
+
+      // Check IPv4
+      if (ipv4 && validateIPAddress(ipv4)) {
+        if (currentIPs.includes(ipv4)) {
+          alreadyWhitelisted.push(ipv4);
+        } else {
+          ipsToAdd.push(ipv4);
+        }
+      }
+
+      // Check IPv6
+      if (ipv6 && validateIPAddress(ipv6) && ipv6 !== ipv4) {
+        if (currentIPs.includes(ipv6)) {
+          alreadyWhitelisted.push(ipv6);
+        } else {
+          ipsToAdd.push(ipv6);
+        }
+      }
+
+      if (ipsToAdd.length === 0) {
+        if (alreadyWhitelisted.length > 0) {
+          showToast('error', `Your IP${alreadyWhitelisted.length > 1 ? 's are' : ' is'} already whitelisted`);
+        } else {
+          showToast('error', 'Could not detect your IP address');
+        }
+        return;
+      }
+
+      // Add new IPs
+      const updatedIPs = [...currentIPs, ...ipsToAdd];
+      await updateWhitelistedIPs(userId, updatedIPs, tokenData.auth_token);
+
+      const message = ipsToAdd.length === 1
+        ? `Your IP address (${ipsToAdd[0]}) has been whitelisted`
+        : `${ipsToAdd.length} IP addresses have been whitelisted`;
+
+      showToast('success', message);
+      mutate();
+    } catch (err) {
+      console.error('Error auto-whitelisting IP:', err);
+      showToast('error', 'Failed to whitelist your IP address');
+    } finally {
+      setIsAutoWhitelisting(false);
+    }
+  };
+
+  const handleWhitelistAll = async () => {
+    if (!userId || !tokenData?.auth_token || isWhitelistingAll) return;
+
+    const ALL_IPV4_CIDR = '0.0.0.0/0';
+    // you can optionally add IPv6 all (::/0) depending on requirements
+    setIsWhitelistingAll(true);
+    try {
+      const clientData = data?.whatsub_b2b_client[0];
+      const currentIPs = clientData?.ips || [];
+
+      if (currentIPs.includes(ALL_IPV4_CIDR)) {
+        showToast('error', 'All IPs are already whitelisted');
+        return;
+      }
+
+      const updatedIPs = [...currentIPs, ALL_IPV4_CIDR];
+      await updateWhitelistedIPs(userId, updatedIPs, tokenData.auth_token);
+      showToast('success', `${ALL_IPV4_CIDR} added to whitelist`);
+      mutate();
+    } catch (err) {
+      console.error('Error whitelisting all IPs:', err);
+      showToast('error', 'Failed to whitelist all IPs');
+    } finally {
+      setIsWhitelistingAll(false);
     }
   };
 
@@ -173,15 +304,14 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
                   className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
                   <Home className="w-5 h-5" />
-                 
                 </button>
                 <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
                 <div>
                   <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                    IP Whitelist
+                    Whitelisted IP Addresses
                   </h1>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    Manage allowed IP addresses for API access
+                    Restrict API access to specific IP addresses
                   </p>
                 </div>
               </div>
@@ -219,7 +349,6 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
                   className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                 >
                   <Home className="w-5 h-5" />
-                 
                 </button>
                 <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
 
@@ -273,12 +402,11 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
         <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
           <div className="max-w-7xl mx-auto px-6 py-3 my-0">
             <button
-                  onClick={onBack}
-                  className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                >
-                  <Home className="w-5 h-5" />
-              
-                </button>
+              onClick={onBack}
+              className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            >
+              <Home className="w-5 h-5" />
+            </button>
           </div>
         </div>
         <div className="max-w-5xl mx-auto px-6 py-12">
@@ -305,39 +433,34 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
       {/* Header */}
-<div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
-  <div className="max-w-7xl mx-auto px-6 py-6">
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-4">
-        <button
-                  onClick={onBack}
-                  className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                >
-                  <Home className="w-5 h-5" />
-                 
-                </button>
-        <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
+      <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={onBack}
+                className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+              >
+                <Home className="w-5 h-5" />
+              </button>
+              <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
 
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            Whitelisted IP Addresses
-          </h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Restrict API access to specific IP addresses
-          </p>
+              <div>
+                <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                  Whitelisted IP Addresses
+                </h1>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Restrict API access to specific IP addresses
+                </p>
+              </div>
+            </div>
+
+            <Navbar />
+          </div>
         </div>
       </div>
 
-      <Navbar />
-    </div>
-  </div>
-</div>
-
-
-     
-
       {/* Content */}
-
       <div className="max-w-5xl mx-auto px-6 py-12">
         <div className="space-y-8">
           {/* Add IP Form */}
@@ -353,7 +476,7 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
                   value={newIP}
                   onChange={(e) => setNewIP(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Enter IP address"
+                  placeholder="Enter IP address or CIDR (e.g. 192.168.1.1 or 0.0.0.0/0)"
                   disabled={isAdding}
                   className="w-full pl-12 pr-4 py-3.5 rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-500 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 />
@@ -367,6 +490,47 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
                 ) : (
                   <Plus className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+
+            {/* Whitelist My IP + Whitelist All IPs Buttons */}
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={handleWhitelistMyIP}
+                disabled={isAutoWhitelisting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900 dark:bg-zinc-800 text-white hover:bg-zinc-700 transition-all shadow-sm text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Automatically detect and whitelist your current IP address (IPv4 and IPv6)"
+              >
+                {isAutoWhitelisting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <span>Detecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="w-4 h-4" />
+                    <span>Whitelist My IP</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleWhitelistAll}
+                disabled={isWhitelistingAll}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-sm text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Whitelist all IPv4 addresses (adds 0.0.0.0/0)"
+              >
+                {isWhitelistingAll ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <span>Whitelisting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4" />
+                    <span>Whitelist All IPs</span>
+                  </>
                 )}
               </button>
             </div>
@@ -428,7 +592,7 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
           {/* IP Whitelist Information */}
           <div className="rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 p-6">
             <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100 mb-4">
-              IP Whitelist Information
+              Whitelisted IP Addresses
             </h3>
             <ul className="space-y-3">
               <li className="flex items-start gap-3">
@@ -441,6 +605,12 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 mt-2 flex-shrink-0" />
                 <p className="text-indigo-800 dark:text-indigo-200 leading-relaxed">
                   You can add multiple IP addresses to the whitelist
+                </p>
+              </li>
+              <li className="flex items-start gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 mt-2 flex-shrink-0" />
+                <p className="text-indigo-800 dark:text-indigo-200 leading-relaxed">
+                  Use "Whitelist My IP Address" button to automatically detect and add your current IPv4 and IPv6 addresses
                 </p>
               </li>
               <li className="flex items-start gap-3">
@@ -493,7 +663,6 @@ export function IPWhitelist({ onBack, onNavigateToAPIKeys }: IPWhitelistProps) {
           </div>
         </div>
       )}
-
     </div>
   );
 }

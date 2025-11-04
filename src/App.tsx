@@ -18,40 +18,46 @@ function AppContent() {
     if (path === '/api-keys') return 'api-keys';
     if (path === '/ip-whitelist') return 'ip-whitelist';
     if (path === '/webhooks') return 'webhooks';
-    if (path === '/docs' || path === '/') return 'index';
+    if (path === '/' || path === '/') return 'index'; //changed docs
     return 'docs';
   });
 
   const [currentPath, setCurrentPath] = useState(() =>
-    window.location.pathname.startsWith('/docs/')
-      ? window.location.pathname.replace('/docs/', '')
+    window.location.pathname.startsWith('/') // changed docs
+      ? window.location.pathname.replace('/', '')
       : ''
   );
 
   // Handle navigation
-  useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname;
-      if (path === '/api-keys') {
-        setCurrentRoute('api-keys');
-      } else if (path === '/ip-whitelist') {
-        setCurrentRoute('ip-whitelist');
-      } else if (path === '/webhooks') {
-        setCurrentRoute('webhooks');
-      } else if (path === '/docs' || path === '/') {
-        setCurrentRoute('index');
-        setCurrentPath('');
-      } else if (path.startsWith('/docs/')) {
-        setCurrentRoute('docs');
-        setCurrentPath(path.replace('/docs/', ''));
-      }
-    };
+useEffect(() => {
+  const handlePopState = () => {
+    const path = window.location.pathname;
+    if (path === '/api-keys') {
+      setCurrentRoute('api-keys');
+      setCurrentPath('');
+    } else if (path === '/ip-whitelist') {
+      setCurrentRoute('ip-whitelist');
+      setCurrentPath('');
+    } else if (path === '/webhooks') {
+      setCurrentRoute('webhooks');
+      setCurrentPath('');
+    } else if (path === '/') {
+      setCurrentRoute('index');
+      setCurrentPath('');
+    } else if (path.startsWith('/')) {
+      setCurrentRoute('docs');
+      setCurrentPath(path.replace(/^\//, ''));
+    }
+  };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
+  // sync immediately on mount (so route state matches URL)
+  handlePopState();
+
+  window.addEventListener('popstate', handlePopState);
+  return () => window.removeEventListener('popstate', handlePopState);
+}, []);
+
+
 
   // Fetch data with SWR
   const { data: allDocs, error: allDocsError } = useSWR<DocumentationResponse>(
@@ -65,14 +71,14 @@ function AppContent() {
   );
 
   const handleNavigate = (path: string) => {
-    const newUrl = path ? `/docs/${path}` : '/docs';
+    const newUrl = path ? `/${path}` : '/'; //changed docs
     window.history.pushState({}, '', newUrl);
     setCurrentRoute(path ? 'docs' : 'index');
     setCurrentPath(path);
   };
 
   const handleNavigateToRoute = (route: RouteType) => {
-    let url = '/docs';
+    let url = '/'; //changed docs
     if (route === 'api-keys') url = '/api-keys';
     if (route === 'ip-whitelist') url = '/ip-whitelist';
     if (route === 'webhooks') url = '/webhooks';
@@ -83,7 +89,7 @@ function AppContent() {
   };
 
   const handleBack = () => {
-    window.history.pushState({}, '', '/docs');
+    window.history.pushState({}, '', '/'); // changed docs
     setCurrentRoute('index');
     setCurrentPath('');
   };
@@ -242,7 +248,7 @@ function AppContent() {
   }
 
   return (
-    <DocsReader doc={doc} onBack={handleBack} />
+    <DocsReader doc={doc} onBack={handleBack} onNavigateToAPIKeys={() => handleNavigateToRoute('api-keys')} />
   );
 }
 

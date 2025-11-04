@@ -33,6 +33,7 @@ import { SkeletonEndpoint, SkeletonBox } from '../components/ui/SkeletonLoader';
 interface DocsReaderProps {
   doc: Documentation;
   onBack: () => void;
+  onNavigateToAPIKeys?: () => void;
 }
 
 interface EndpointData {
@@ -54,7 +55,7 @@ interface NavItem {
 }
 
 type ViewMode = 'section' | 'overview' | 'env';
-export function DocsReader({ doc, onBack }: DocsReaderProps) {
+export function DocsReader({ doc, onBack, onNavigateToAPIKeys }: DocsReaderProps) {
   const { theme, isDark, cycleTheme } = useTheme();
   const { isAuthenticated, login } = useAuth();
   const { isAuthenticated: _unused } = useAuth();
@@ -75,6 +76,9 @@ export function DocsReader({ doc, onBack }: DocsReaderProps) {
   const [showTryItOut, setShowTryItOut] = useState(false);
   const [selectedTryEndpoint, setSelectedTryEndpoint] = useState<EndpointData | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  // add near other useState declarations
+const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('docs');
+
 
   // Parse YAML content
   const [isParsingYaml, setIsParsingYaml] = useState(true);
@@ -535,6 +539,7 @@ export function DocsReader({ doc, onBack }: DocsReaderProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
       {/* Header - replaced with IPWhitelist-style header for consistency */}
+      
     <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
   <div className="max-w-7xl mx-auto px-6 py-6">
     <div className="flex items-center justify-between gap-8">
@@ -582,9 +587,18 @@ export function DocsReader({ doc, onBack }: DocsReaderProps) {
       </div>
     </div>
   </div>
-</div>
+  
+  </div>
+  
+
+
+
+
+
+
 
       <div className="flex">
+        
         {/* Sidebar */}
         <aside className={`
           fixed lg:sticky top-[73px] left-0 z-40 w-80 h-[calc(100vh-73px)] bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-r border-zinc-200/60 dark:border-zinc-800/60 overflow-y-auto
@@ -705,8 +719,83 @@ export function DocsReader({ doc, onBack }: DocsReaderProps) {
         )}
 
         {/* Main Content */}
+  <div className='flex flex-col max-w-6xl mx-auto'>
+{/* centered tab bar */}
+<div className="mt-4 mb-6">
+  <div className="flex justify-center">
+    <div className="w-auto max-w-1xl rounded-2xl bg-white/70 dark:bg-zinc-900/60 backdrop-blur border border-zinc-200/60 dark:border-zinc-800/60 px-3 py-2 flex items-center justify-center gap-4">
+      <button
+        onClick={() => {
+          setLocalDocTab('docs');
+          setSidebarOpen(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          localDocTab === 'docs'
+            ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300'
+            : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
+        }`}
+        aria-current={localDocTab === 'docs' ? 'page' : undefined}
+      >
+        Docs
+      </button>
+
+      <button
+        onClick={() => setLocalDocTab('api')}
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          localDocTab === 'api'
+            ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300'
+            : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
+        }`}
+      >
+        API Reference
+      </button>
+
+  <button
+  onClick={() => {
+    console.log('Platform clicked');
+    let url = (doc.platform || '').trim();
+
+    if (!url) {
+      // no platform provided — fallback behavior
+      setLocalDocTab('platform');
+      return;
+    }
+
+    // strip surrounding quotes or accidental commas
+    url = url.replace(/^["']|["']$/g, '').replace(/,$/, '').trim();
+
+    // If url is like "example.com" (no protocol) prepend https://
+    if (!/^https?:\/\//i.test(url)) {
+      url = `https://${url}`;
+    }
+
+    try {
+      // encodeURI preserves slashes/colon but encodes spaces etc.
+      const href = encodeURI(url);
+      window.open(href, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Failed to open platform URL', url, err);
+      // fallback UI
+      setLocalDocTab('platform');
+    }
+  }}
+  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+    localDocTab === 'platform'
+      ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300'
+      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
+  }`}
+>
+  Platform
+</button>
+
+    </div>
+  </div>
+</div>
+
+
         <main className="flex-1 lg:ml-0">
-          <div className="max-w-4xl mx-auto px-6 py-12">
+          <div className="max-w-5xl mx-auto px-6 py-12">
             {viewMode === 'env' ? (
               <div className="space-y-8">
                 <div>
@@ -1008,7 +1097,11 @@ export function DocsReader({ doc, onBack }: DocsReaderProps) {
             )}
           </div>
         </main>
+
+        </div>
       </div>
+
+      
 
       {/* Back to Top Button */}
       {showBackToTop && (
@@ -1033,6 +1126,7 @@ export function DocsReader({ doc, onBack }: DocsReaderProps) {
       {/* Try It Out Modal */}
       {selectedTryEndpoint && (
         <TryItOutModal
+        onNavigateToAPIKeys={onNavigateToAPIKeys}
           isOpen={showTryItOut}
           onClose={() => {
             setShowTryItOut(false);

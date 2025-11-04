@@ -5,12 +5,12 @@ import {
   getTokens,
   clearRefreshTimer,
   TokenData,
-  isTokenValid,
 } from '../services/tokenManager';
-import { isAuthenticated } from '../services/auth';
+import { isAuthenticated as checkAuthService } from '../services/auth';
 
 interface AuthContextType {
-  isAuthenticated: boolean;
+  isAuthenticated: boolean; // still boolean (true/false)
+  isAuthLoading: boolean;   // NEW - true while restoring
   logout: () => Promise<void>;
   login: () => void;
   tokenData: TokenData | null;
@@ -20,56 +20,70 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // Keep isAuth initial false but expose loading separately
   const [isAuth, setIsAuth] = useState(false);
   const [tokenData, setTokenData] = useState<TokenData | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true); // NEW
 
-useEffect(() => {
-  const checkAuth = () => {
-    const authenticated = isAuthenticated();
-    setIsAuth(authenticated);
-    
-    if (authenticated) {
-      const tokens = getTokens();
-      setTokenData(tokens);
-      
-      // DON'T check isTokenValid() - always try to refresh
-      // Only logout if refresh mutation fails (via the failure callback)
-      initializeTokenRefresh(
-        (newTokens) => {
-          setTokenData(newTokens);
-          console.log('✅ Tokens refreshed successfully');
-        },
-        () => {
-          // ONLY logout when refresh mutation actually fails
-          console.error('❌ Token refresh failed - logging out');
-          handleLogout();
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const authenticated = checkAuthService();
+        setIsAuth(authenticated);
+
+        if (authenticated) {
+          const tokens = getTokens();
+          setTokenData(tokens);
+
+          // initialize refresh (same as before)
+          initializeTokenRefresh(
+            (newTokens) => {
+              setTokenData(newTokens);
+              console.log('✅ Tokens refreshed successfully');
+            },
+            () => {
+              console.error('❌ Token refresh failed - logging out');
+              handleLogout();
+            }
+          );
+        } else {
+          // Not authenticated: ensure tokenData cleared
+          setTokenData(null);
         }
-      );
-    }
-  };
+      } catch (err) {
+        console.error('Auth check error', err);
+        setIsAuth(false);
+        setTokenData(null);
+      } finally {
+        // Mark initialization finished in all cases
+        setIsAuthLoading(false);
+      }
+    };
 
-  checkAuth();
+    checkAuth();
 
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible' && isAuthenticated()) {
-      // DON'T check isTokenValid() here either
-      // Just let the refresh system handle it
-      console.log('User came back online - refresh system will handle tokens');
-    }
-  };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && checkAuthService()) {
+        // leave refresh handling to the refresh system
+        console.log('User came back online - refresh system will handle tokens');
+      }
+    };
 
-  document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-  return () => {
-    clearRefreshTimer();
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-  };
-}, []);
+    return () => {
+      clearRefreshTimer();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const handleLogin = () => {
     setIsAuth(true);
     const tokens = getTokens();
     setTokenData(tokens);
+
+    // If login is performed manually, loading finished
+    setIsAuthLoading(false);
 
     initializeTokenRefresh(
       (newTokens) => {
@@ -88,12 +102,15 @@ useEffect(() => {
     setIsAuth(false);
     setTokenData(null);
     clearRefreshTimer();
+    // after explicit logout we are not loading
+    setIsAuthLoading(false);
   };
 
   return (
     <AuthContext.Provider
       value={{
         isAuthenticated: isAuth,
+        isAuthLoading, // NEW exposed flag
         logout: handleLogout,
         login: handleLogin,
         tokenData,
