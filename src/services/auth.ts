@@ -78,7 +78,10 @@ export async function getCountryCodes(): Promise<CountryCode[]> {
 }
 
 export async function sendOTP(phone: string): Promise<{ request_id: string; status: string }> {
-  const phoneNumber =  `+${phone}`
+  // Ensure phone starts with + and remove any whitespace
+  const cleanedPhone = phone.trim();
+  const phoneNumber = cleanedPhone.startsWith('+') ? cleanedPhone : `+${cleanedPhone}`;
+  
   const response = await fetch(AUTH_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -86,7 +89,7 @@ export async function sendOTP(phone: string): Promise<{ request_id: string; stat
     },
     body: JSON.stringify({
       query: REGISTER_MUTATION,
-      variables: {phone: phoneNumber} ,
+      variables: { phone: phoneNumber },
     }),
   });
 
@@ -99,6 +102,10 @@ export async function sendOTP(phone: string): Promise<{ request_id: string; stat
 }
 
 export async function verifyOTP(phone: string, otp: string): Promise<VerifyOTPResponse['verifyOTPV2']> {
+  // Ensure phone starts with + and remove any whitespace
+  const cleanedPhone = phone.trim();
+  const phoneNumber = cleanedPhone.startsWith('+') ? cleanedPhone : `+${cleanedPhone}`;
+  
   const response = await fetch(AUTH_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -106,7 +113,7 @@ export async function verifyOTP(phone: string, otp: string): Promise<VerifyOTPRe
     },
     body: JSON.stringify({
       query: VERIFY_OTP_MUTATION,
-      variables: { phone1: phone, otp1: otp },
+      variables: { phone1: phoneNumber, otp1: otp },
     }),
   });
 

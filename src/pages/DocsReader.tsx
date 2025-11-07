@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { sendOTP } from '../services/auth';
 import {
   Search,
   Moon,
@@ -10,7 +11,8 @@ import {
   ChevronRight,
   Copy,
   Check,
-
+  AlertCircle,
+  CheckCircle2,
   Home
 } from 'lucide-react';
 import { useTheme } from '../hooks/useDarkMode';
@@ -76,6 +78,12 @@ export function DocsReader({ doc, onBack, onNavigateToAPIKeys }: DocsReaderProps
   const [showTryItOut, setShowTryItOut] = useState(false);
   const [selectedTryEndpoint, setSelectedTryEndpoint] = useState<EndpointData | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  // Auto OTP functionality
+const [autoOtpSent, setAutoOtpSent] = useState(false);
+const [autoOtpPhone, setAutoOtpPhone] = useState<string | null>(null);
+const [showOtpToast, setShowOtpToast] = useState(false);
+const [otpToastMessage, setOtpToastMessage] = useState('');
+const [otpToastType, setOtpToastType] = useState<'success' | 'error'>('success');
   // add near other useState declarations
 const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('docs');
 
@@ -137,6 +145,59 @@ const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('doc
     window.history.replaceState({}, '', newUrl);
   }, [viewMode]);
 
+// Auto-send OTP if phone parameter exists in URL
+useEffect(() => {
+  const checkAndSendOTP = async () => {
+    if (autoOtpSent) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const phone = params.get('phone');
+
+    if (!phone) return;
+
+    try {
+      // Clean phone number (remove non-digits for validation)
+      const cleanPhone = phone.replace(/\D/g, '');
+      
+      if (cleanPhone.length < 10) {
+        setOtpToastType('error');
+        setOtpToastMessage('Invalid phone number format');
+        setShowOtpToast(true);
+        setTimeout(() => setShowOtpToast(false), 5000);
+        return;
+      }
+
+      // Send OTP using the phone number from URL
+      await sendOTP(cleanPhone);
+      setAutoOtpSent(true);
+      setAutoOtpPhone(phone);
+      
+      // OPEN THE LOGIN MODAL WITH PRE-FILLED PHONE AND OTP STEP
+      setShowLoginModal(true);  // ADD THIS LINE
+      
+      setOtpToastType('success');
+      setOtpToastMessage(`OTP sent successfully to ${phone}`);
+      setShowOtpToast(true);
+
+      // Hide toast after 5 seconds
+      setTimeout(() => setShowOtpToast(false), 5000);
+
+      // Remove phone parameter from URL to prevent resending
+      const url = new URL(window.location.href);
+      url.searchParams.delete('phone');
+      window.history.replaceState({}, '', url.toString());
+
+    } catch (error) {
+      console.error('Failed to send OTP:', error);
+      setOtpToastType('error');
+      setOtpToastMessage('Failed to send OTP. Please try again.');
+      setShowOtpToast(true);
+      setTimeout(() => setShowOtpToast(false), 5000);
+    }
+  };
+
+  checkAndSendOTP();
+}, [autoOtpSent]);
   // Handle popstate for back/forward navigation
   useEffect(() => {
     const handlePopState = () => {
@@ -540,17 +601,16 @@ const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('doc
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50/50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950/50">
       {/* Header - replaced with IPWhitelist-style header for consistency */}
       
-    <div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
+<div className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/60 dark:border-zinc-800/60">
   <div className="max-w-7xl mx-auto px-6 py-6">
-    <div className="flex items-center justify-between gap-8">
+    <div className="grid grid-cols-3 items-center gap-8">
       {/* Left section - Home and Title */}
-      <div className="flex items-center gap-4 flex-shrink-0">
+      <div className="flex items-center gap-4">
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
         >
           <Home className="w-5 h-5" />
-
         </button>
 
         <div className="border-l border-zinc-300 dark:border-zinc-700 h-8" />
@@ -565,8 +625,82 @@ const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('doc
         </div>
       </div>
 
+      {/* Center - Tab Navigation */}
+      <div className="flex justify-center">
+        <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-zinc-100/80 dark:bg-zinc-800/50 backdrop-blur-sm">
+          <button
+            onClick={() => {
+              setLocalDocTab('docs');
+              setSidebarOpen(false);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`
+              relative px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200
+              ${localDocTab === 'docs'
+                ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }
+            `}
+            aria-current={localDocTab === 'docs' ? 'page' : undefined}
+          >
+                        API Reference
+
+          </button>
+
+          <button
+            onClick={() => setLocalDocTab('api')}
+            className={`
+              relative px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200
+              ${localDocTab === 'api'
+                ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }
+            `}
+            aria-current={localDocTab === 'api' ? 'page' : undefined}
+          >
+            Docs
+          </button>
+
+          <button
+            onClick={() => {
+              console.log('Platform clicked');
+              let url = (doc.platform || '').trim();
+
+              if (!url) {
+                setLocalDocTab('platform');
+                return;
+              }
+
+              url = url.replace(/^["']|["']$/g, '').replace(/,$/, '').trim();
+
+              if (!/^https?:\/\//i.test(url)) {
+                url = `https://${url}`;
+              }
+
+              try {
+                const href = encodeURI(url);
+                window.open(href, '_blank', 'noopener,noreferrer');
+              } catch (err) {
+                console.error('Failed to open platform URL', url, err);
+                setLocalDocTab('platform');
+              }
+            }}
+            className={`
+              relative px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200
+              ${localDocTab === 'platform'
+                ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm'
+                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              }
+            `}
+            aria-current={localDocTab === 'platform' ? 'page' : undefined}
+          >
+            Platform
+          </button>
+        </div>
+      </div>
+
       {/* Right section - Environment Selector and Navbar */}
-      <div className="flex items-center gap-4 flex-shrink-0 ml-auto">
+      <div className="flex items-center gap-4 justify-end">
         {/* Environment Selector */}
         {availableEnvs.length > 0 && (
           <select
@@ -587,8 +721,7 @@ const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('doc
       </div>
     </div>
   </div>
-  
-  </div>
+</div>
   
 
 
@@ -720,78 +853,7 @@ const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('doc
 
         {/* Main Content */}
   <div className='flex flex-col max-w-6xl mx-auto'>
-{/* centered tab bar */}
-<div className="mt-4 mb-6">
-  <div className="flex justify-center">
-    <div className="w-auto max-w-1xl rounded-2xl bg-white/70 dark:bg-zinc-900/60 backdrop-blur border border-zinc-200/60 dark:border-zinc-800/60 px-3 py-2 flex items-center justify-center gap-4">
-      <button
-        onClick={() => {
-          setLocalDocTab('docs');
-          setSidebarOpen(false);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-          localDocTab === 'docs'
-            ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300'
-            : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
-        }`}
-        aria-current={localDocTab === 'docs' ? 'page' : undefined}
-      >
-        Docs
-      </button>
 
-      <button
-        onClick={() => setLocalDocTab('api')}
-        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-          localDocTab === 'api'
-            ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300'
-            : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
-        }`}
-      >
-        API Reference
-      </button>
-
-  <button
-  onClick={() => {
-    console.log('Platform clicked');
-    let url = (doc.platform || '').trim();
-
-    if (!url) {
-      // no platform provided — fallback behavior
-      setLocalDocTab('platform');
-      return;
-    }
-
-    // strip surrounding quotes or accidental commas
-    url = url.replace(/^["']|["']$/g, '').replace(/,$/, '').trim();
-
-    // If url is like "example.com" (no protocol) prepend https://
-    if (!/^https?:\/\//i.test(url)) {
-      url = `https://${url}`;
-    }
-
-    try {
-      // encodeURI preserves slashes/colon but encodes spaces etc.
-      const href = encodeURI(url);
-      window.open(href, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      console.error('Failed to open platform URL', url, err);
-      // fallback UI
-      setLocalDocTab('platform');
-    }
-  }}
-  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-    localDocTab === 'platform'
-      ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300'
-      : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'
-  }`}
->
-  Platform
-</button>
-
-    </div>
-  </div>
-</div>
 
 
         <main className="flex-1 lg:ml-0">
@@ -1121,6 +1183,8 @@ const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('doc
           setSelectedTryEndpoint(null);
         }}
         onLoginSuccess={handleLoginSuccess}
+        initialPhone={autoOtpPhone || undefined}  // ADD THIS LINE
+  initialStep={autoOtpSent ? 'otp' : 'phone'} 
       />
 
       {/* Try It Out Modal */}
@@ -1165,7 +1229,50 @@ const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('doc
           }}
         />
       )}
-
+      {/* Auto OTP Toast Notification */}
+      {showOtpToast && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[10000] animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className={`
+            flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl backdrop-blur-xl border
+            ${otpToastType === 'success'
+              ? 'bg-emerald-50/95 dark:bg-emerald-900/95 border-emerald-200 dark:border-emerald-700'
+              : 'bg-red-50/95 dark:bg-red-900/95 border-red-200 dark:border-red-700'
+            }
+          `}>
+            {otpToastType === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            )}
+            <div>
+              <p className={`font-semibold text-sm ${
+                otpToastType === 'success'
+                  ? 'text-emerald-900 dark:text-emerald-100'
+                  : 'text-red-900 dark:text-red-100'
+              }`}>
+                {otpToastType === 'success' ? 'OTP Sent!' : 'Error'}
+              </p>
+              <p className={`text-sm ${
+                otpToastType === 'success'
+                  ? 'text-emerald-700 dark:text-emerald-300'
+                  : 'text-red-700 dark:text-red-300'
+              }`}>
+                {otpToastMessage}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowOtpToast(false)}
+              className={`p-1 rounded-lg transition-colors ${
+                otpToastType === 'success'
+                  ? 'hover:bg-emerald-100 dark:hover:bg-emerald-800'
+                  : 'hover:bg-red-100 dark:hover:bg-red-800'
+              }`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

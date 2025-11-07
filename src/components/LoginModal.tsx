@@ -7,15 +7,18 @@ interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess?: () => void;
+  initialPhone?: string;  // ADD THIS
+  initialStep?: 'phone' | 'otp';  // ADD THIS
 }
 
-export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
+export function LoginModal({ isOpen, onClose, onLoginSuccess,initialPhone,initialStep }: LoginModalProps) {
   const [countryCodes, setCountryCodes] = useState<CountryCode[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<CountryCode | null>(null);
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [fullPhoneUsedForOTP, setFullPhoneUsedForOTP] = useState<string | null>(null);
+const [phoneNumber, setPhoneNumber] = useState('');// MODIFY THIS
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
+ const [step, setStep] = useState<'phone' | 'otp'>(initialStep || 'phone');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,6 +31,41 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
       loadCountryCodes();
     }
   }, [isOpen]);
+
+// Update phone number when initialPhone changes
+useEffect(() => {
+  if (initialPhone && countryCodes.length > 0) {
+    // Parse phone number: extract country code and number
+     setFullPhoneUsedForOTP(initialPhone); 
+    const cleanPhone = initialPhone.replace(/\D/g, '');
+    
+    let foundMatch = false;
+    
+    // Try to find matching country code (check common lengths: 1, 2, 3 digits)
+    for (let len = 3; len >= 1; len--) {
+      const potentialCode = cleanPhone.substring(0, len);
+      const matchedCountry = countryCodes.find(c => c.phone_code === potentialCode);
+      
+      if (matchedCountry) {
+        setSelectedCountry(matchedCountry);
+        setPhoneNumber(cleanPhone.substring(len));
+        foundMatch = true;
+        break;
+      }
+    }
+    
+    // If no match found, just set the full number
+    if (!foundMatch) {
+      setPhoneNumber(cleanPhone);
+    }
+  }
+}, [initialPhone, countryCodes]);
+
+useEffect(() => {
+  if (initialStep && isOpen) {
+    setStep(initialStep);
+  }
+}, [initialStep, isOpen]);// Fixed dependency array - removed selectedCountry and initialStep
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -107,8 +145,9 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
     setError('');
 
     try {
-      const fullPhone = `${selectedCountry.phone_code}${phoneNumber}`;
-      await sendOTP(fullPhone);
+    const fullPhone = `+${selectedCountry.phone_code}${phoneNumber}`;
+setFullPhoneUsedForOTP(fullPhone);  // ADD THIS LINE
+await sendOTP(fullPhone);
       setStep('otp');
     } catch (err) {
       setError('Failed to send OTP. Please try again.');
@@ -127,7 +166,7 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
     setError('');
 
     try {
-      const fullPhone = `${selectedCountry!.phone_code}${phoneNumber}`;
+   const fullPhone = fullPhoneUsedForOTP || initialPhone || `+${selectedCountry!.phone_code}${phoneNumber}`;
       const response = await verifyOTP(fullPhone, otp);
       saveAuthData(response);
       
@@ -149,15 +188,19 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
     }
   };
 
-  const handleClose = () => {
+const handleClose = () => {
+  if (!initialPhone) {
     setPhoneNumber('');
-    setOtp('');
+  }
+  setOtp('');
+  if (!initialStep) {
     setStep('phone');
-    setError('');
-    setSearchTerm('');
-    setShowCountryDropdown(false);
-    onClose();
-  };
+  }
+  setError('');
+  setSearchTerm('');
+  setShowCountryDropdown(false);
+  onClose();
+};
 
   const handleSelectCountry = (country: CountryCode) => {
     setSelectedCountry(country);
@@ -335,7 +378,7 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
                   </div>
                   <div className="mt-3 flex items-center justify-between">
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      Code sent to +{selectedCountry?.phone_code} {phoneNumber}
+                      Code sent to {fullPhoneUsedForOTP}
                     </p>
                     <button
                       onClick={() => setStep('phone')}
