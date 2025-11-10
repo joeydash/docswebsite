@@ -125,11 +125,16 @@ export async function verifyOTP(phone: string, otp: string): Promise<VerifyOTPRe
   return data.data.verifyOTPV2;
 }
 
-export function saveAuthData(data: VerifyOTPResponse['verifyOTPV2']) {
+export function saveAuthData(data: VerifyOTPResponse['verifyOTPV2'], phone?: string) {
   localStorage.setItem('auth_token', data.auth_token);
   localStorage.setItem('refresh_token', data.refresh_token);
   localStorage.setItem('user_id', data.id);
   localStorage.setItem('token_timestamp', Date.now().toString());
+  
+  // Store phone number if provided
+  if (phone) {
+    localStorage.setItem('user_phone', phone);
+  }
 }
 
 export function getAuthData() {
@@ -145,6 +150,7 @@ export function clearAuthData() {
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('user_id');
   localStorage.removeItem('token_timestamp');
+  localStorage.removeItem('user_phone');  // ADD THIS LINE
   localStorage.removeItem('savedAPIKeys');
   localStorage.removeItem('organizationDetails')
   localStorage.removeItem('apiKey')

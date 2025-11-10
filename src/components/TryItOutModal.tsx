@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Play, Loader2, Key, AlertCircle, Shield } from 'lucide-react';
+import { X, Play, Loader2, Key, AlertCircle, Shield, CheckCircle2 } from 'lucide-react';
 
 interface TryItOutModalProps {
   isOpen: boolean;
@@ -35,7 +35,9 @@ export function TryItOutModal({ isOpen, onClose, onNavigateToAPIKeys, endpoint }
   const [clientSecret, setClientSecret] = useState('');
   const [isGettingToken, setIsGettingToken] = useState(false);
   const [hasCredentials, setHasCredentials] = useState(false);
-  const [authError, setAuthError] = useState<{ message: string; isIPError?: boolean } | null>(null);
+const [authError, setAuthError] = useState<{ message: string; isIPError?: boolean } | null>(null);
+const [isRetryingWithNewToken, setIsRetryingWithNewToken] = useState(false);
+const [currentUserIP, setCurrentUserIP] = useState<string | null>(null);
 
   // --- ADD: resolveBodyWithCreds (must be before useEffect that uses it) ---
   const resolveBodyWithCreds = (body: string) => {
@@ -146,15 +148,70 @@ export function TryItOutModal({ isOpen, onClose, onNavigateToAPIKeys, endpoint }
 
   if (!isOpen) return null;
 
-  const handleExecute = async () => {
+  // Helper function to get current IP
+const fetchCurrentUserIP = async (): Promise<string | null> => {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    return data.ip || null;
+  } catch {
+    try {
+      const response = await fetch('https://api64.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip || null;
+    } catch {
+      return null;
+    }
+  }
+};
+
+// Helper function to attempt token regeneration
+const attemptTokenRegeneration = async (): Promise<string | null> => {
+  try {
+    const savedKeys = JSON.parse(localStorage.getItem('savedAPIKeys') || '[]');
+    const lastSaved = savedKeys[savedKeys.length - 1] || {};
+    const storedClientId = lastSaved.clientId || clientId || '';
+    const storedClientSecret = lastSaved.clientSecret || clientSecret || '';
+
+    if (!storedClientId || !storedClientSecret) {
+      return null;
+    }
+
+    const response = await fetch('https://api.superflow.run/b2b/createAuthToken', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+          clientId: storedClientId,
+        clientSecret: storedClientSecret,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.authToken) {
+      return data.authToken;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const handleExecute = async (retryWithNewToken = false) => {
     setIsExecuting(true);
     setResponse(null);
     setResponseError('');
 
     try {
+      // Make sure we're using the latest headers (with new token if regenerated)
+      const currentHeaders = { ...editableHeaders };
+      
       const options: RequestInit = {
         method: endpoint.method,
-        headers: editableHeaders,
+        headers: currentHeaders,
       };
 
       if (endpoint.method !== 'GET' && endpoint.method !== 'HEAD' && editableBody) {
@@ -187,6 +244,79 @@ export function TryItOutModal({ isOpen, onClose, onNavigateToAPIKeys, endpoint }
         responseData = await res.text();
       }
 
+      // Check for IP blocklisted error
+      const isIPBlocklistedError = responseData && 
+        typeof responseData === 'object' && 
+        responseData.message &&
+        (responseData.message.toLowerCase().includes('ip') && 
+         (responseData.message.toLowerCase().includes('blocklisted') || 
+          responseData.message.toLowerCase().includes('not whitelisted') ||
+          responseData.message.toLowerCase().includes('blocked')));
+
+      if (isIPBlocklistedError && !retryWithNewToken) {
+        // STEP 1: Try to regenerate token
+        setIsRetryingWithNewToken(true);
+        const newToken = await attemptTokenRegeneration();
+
+        if (newToken) {
+          // Token regeneration succeeded - IP is whitelisted, token was the issue
+          setIsRetryingWithNewToken(false);
+          
+          // IMPORTANT: Save new token to localStorage
+          localStorage.setItem('apiKey', newToken);
+          
+          // Update headers with new token
+          setEditableHeaders(prev => ({
+            ...prev,
+            Authorization: `Bearer ${newToken}`
+          }));
+          
+          // Show success message
+          setResponse({
+            status: 200,
+            statusText: 'Token Regenerated',
+            headers: {},
+            data: {
+              message: 'Your token was tied to a different IP. New token generated successfully. Retrying...'
+            },
+            duration: 0,
+            isTokenRegenerated: true,
+          });
+
+          // Wait a moment to show the message, then retry
+          setTimeout(() => {
+            handleExecute(true); // Retry with new token
+          }, 1500);
+          
+          setIsExecuting(false);
+          return;
+        } else {
+          // Token regeneration failed - IP is actually not whitelisted
+          setIsRetryingWithNewToken(false);
+          
+          // Fetch current IP for display
+          const userIP = await fetchCurrentUserIP();
+          setCurrentUserIP(userIP);
+          
+          setResponse({
+            status: res.status,
+            statusText: res.statusText,
+            headers: Object.fromEntries(res.headers.entries()),
+            data: {
+              message: 'Your IP address is not whitelisted in the dashboard.',
+              originalError: responseData.message
+            },
+            duration,
+            isIPError: true,
+            currentIP: userIP,
+          });
+          
+          setIsExecuting(false);
+          return;
+        }
+      }
+
+      // Normal response
       setResponse({
         status: res.status,
         statusText: res.statusText,
@@ -198,6 +328,7 @@ export function TryItOutModal({ isOpen, onClose, onNavigateToAPIKeys, endpoint }
       setResponseError(error.message || 'Request failed');
     } finally {
       setIsExecuting(false);
+      setIsRetryingWithNewToken(false);
     }
   };
 
@@ -573,21 +704,21 @@ export function TryItOutModal({ isOpen, onClose, onNavigateToAPIKeys, endpoint }
           )}
 
           <button
-            onClick={handleExecute}
+            onClick={() => handleExecute(false)}
             disabled={isExecuting}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-sky-500 hover:bg-sky-600 disabled:bg-zinc-400 text-white rounded-lg transition-colors font-medium"
           >
-            {isExecuting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Executing...
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5" />
-                Execute Request
-              </>
-            )}
+          {isExecuting ? (
+  <>
+    <Loader2 className="w-5 h-5 animate-spin" />
+    {isRetryingWithNewToken ? 'Checking IP & Regenerating Token...' : 'Executing...'}
+  </>
+) : (
+  <>
+    <Play className="w-5 h-5" />
+    Execute Request
+  </>
+)}
           </button>
 
           {responseError && (
@@ -623,6 +754,50 @@ export function TryItOutModal({ isOpen, onClose, onNavigateToAPIKeys, endpoint }
                 </div>
               </div>
 
+            {/* Token Regenerated Success Banner */}
+{response.isTokenRegenerated && (
+  <div className="rounded-xl p-4 border bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+    <div className="flex items-start gap-3">
+      <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5 text-green-600 dark:text-green-400" />
+      <div className="flex-1">
+        <div className="text-sm font-medium mb-1 text-green-900 dark:text-green-100">
+          Token Updated Successfully
+        </div>
+        <div className="text-sm text-green-700 dark:text-green-300">
+          {response.data?.message || 'Your token was tied to a different IP. New token generated successfully. Retrying...'}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* IP Whitelist Error Banner */}
+{response.isIPError && (
+  <div className="rounded-xl p-4 border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+    <div className="flex items-start gap-3">
+      <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+      <div className="flex-1">
+        <div className="text-sm font-medium mb-1 text-amber-900 dark:text-amber-100">
+          IP Address Not Whitelisted
+        </div>
+        <div className="text-sm mb-2 text-amber-700 dark:text-amber-300">
+          {response.data?.message || 'Your IP address is not whitelisted.'}
+        </div>
+
+        <div className="text-xs mb-3 text-amber-600 dark:text-amber-400">
+          Please add your IP to the whitelist in the dashboard, then try again.
+        </div>
+        <button
+          onClick={handleNavigateToIPWhitelist}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium text-sm shadow-sm"
+        >
+          <Shield className="w-4 h-4" />
+          Go to IP Whitelist
+        </button>
+      </div>
+    </div>
+  </div>
+)}
               <div>
                 <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">
                   Response Body

@@ -59,7 +59,7 @@ interface NavItem {
 type ViewMode = 'section' | 'overview' | 'env';
 export function DocsReader({ doc, onBack, onNavigateToAPIKeys }: DocsReaderProps) {
   const { theme, isDark, cycleTheme } = useTheme();
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login,logout } = useAuth();
   const { isAuthenticated: _unused } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,7 +83,8 @@ const [autoOtpSent, setAutoOtpSent] = useState(false);
 const [autoOtpPhone, setAutoOtpPhone] = useState<string | null>(null);
 const [showOtpToast, setShowOtpToast] = useState(false);
 const [otpToastMessage, setOtpToastMessage] = useState('');
-const [otpToastType, setOtpToastType] = useState<'success' | 'error'>('success');
+const [otpToastType, setOtpToastType] = useState<'success' | 'error' | 'info'>('success');
+
   // add near other useState declarations
 const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('docs');
 
@@ -148,53 +149,76 @@ const [localDocTab, setLocalDocTab] = useState<'docs' | 'api' | 'platform'>('doc
 // Auto-send OTP if phone parameter exists in URL
 useEffect(() => {
   const checkAndSendOTP = async () => {
-    if (autoOtpSent) return;
+  if (autoOtpSent) return;
 
-    const params = new URLSearchParams(window.location.search);
-    const phone = params.get('phone');
+  const params = new URLSearchParams(window.location.search);
+  const phone = params.get('phone');
 
-    if (!phone) return;
+  if (!phone) return;
 
-    try {
-      // Clean phone number (remove non-digits for validation)
-      const cleanPhone = phone.replace(/\D/g, '');
-      
-      if (cleanPhone.length < 10) {
-        setOtpToastType('error');
-        setOtpToastMessage('Invalid phone number format');
-        setShowOtpToast(true);
-        setTimeout(() => setShowOtpToast(false), 5000);
-        return;
-      }
-
-      // Send OTP using the phone number from URL
-      await sendOTP(cleanPhone);
-      setAutoOtpSent(true);
-      setAutoOtpPhone(phone);
-      
-      // OPEN THE LOGIN MODAL WITH PRE-FILLED PHONE AND OTP STEP
-      setShowLoginModal(true);  // ADD THIS LINE
-      
-      setOtpToastType('success');
-      setOtpToastMessage(`OTP sent successfully to ${phone}`);
-      setShowOtpToast(true);
-
-      // Hide toast after 5 seconds
-      setTimeout(() => setShowOtpToast(false), 5000);
-
-      // Remove phone parameter from URL to prevent resending
-      const url = new URL(window.location.href);
-      url.searchParams.delete('phone');
-      window.history.replaceState({}, '', url.toString());
-
-    } catch (error) {
-      console.error('Failed to send OTP:', error);
+  try {
+    // Clean phone number (remove non-digits for validation)
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    if (cleanPhone.length < 10) {
       setOtpToastType('error');
-      setOtpToastMessage('Failed to send OTP. Please try again.');
+      setOtpToastMessage('Invalid phone number format');
       setShowOtpToast(true);
       setTimeout(() => setShowOtpToast(false), 5000);
+      return;
     }
-  };
+
+    // NEW: Check if user is already logged in
+    if (isAuthenticated) {
+      const currentUserPhone = localStorage.getItem('user_phone');
+      
+      if (currentUserPhone === phone) {
+       // Same number - already logged in, no need to send OTP
+  setAutoOtpSent(true);
+  
+  // Remove phone parameter from URL
+  const url = new URL(window.location.href);
+  url.searchParams.delete('phone');
+  window.history.replaceState({}, '', url.toString());
+  return; // Simply return without showing any toast
+      } else {
+        // Different number - logout first
+        await logout();
+        setOtpToastType('info');
+        setOtpToastMessage('Logging out from current session...');
+        setShowOtpToast(true);
+        setTimeout(() => setShowOtpToast(false), 2000);
+      }
+    }
+
+    // Send OTP (either not authenticated or after logout)
+    await sendOTP(cleanPhone);
+    setAutoOtpSent(true);
+    setAutoOtpPhone(phone);
+    
+    // OPEN THE LOGIN MODAL WITH PRE-FILLED PHONE AND OTP STEP
+    setShowLoginModal(true);
+    
+    setOtpToastType('success');
+    setOtpToastMessage(`OTP sent successfully to ${phone}`);
+    setShowOtpToast(true);
+
+    // Hide toast after 5 seconds
+    setTimeout(() => setShowOtpToast(false), 5000);
+
+    // Remove phone parameter from URL to prevent resending
+    const url = new URL(window.location.href);
+    url.searchParams.delete('phone');
+    window.history.replaceState({}, '', url.toString());
+
+  } catch (error) {
+    setAutoOtpSent(true);
+    setOtpToastType('error');
+    setOtpToastMessage('Failed to send OTP. Please try again.');
+    setShowOtpToast(true);
+    setTimeout(() => setShowOtpToast(false), 5000);
+  }
+};
 
   checkAndSendOTP();
 }, [autoOtpSent]);
@@ -1230,49 +1254,59 @@ useEffect(() => {
         />
       )}
       {/* Auto OTP Toast Notification */}
-      {showOtpToast && (
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[10000] animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className={`
-            flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl backdrop-blur-xl border
-            ${otpToastType === 'success'
-              ? 'bg-emerald-50/95 dark:bg-emerald-900/95 border-emerald-200 dark:border-emerald-700'
-              : 'bg-red-50/95 dark:bg-red-900/95 border-red-200 dark:border-red-700'
-            }
-          `}>
-            {otpToastType === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-            )}
-            <div>
-              <p className={`font-semibold text-sm ${
-                otpToastType === 'success'
-                  ? 'text-emerald-900 dark:text-emerald-100'
-                  : 'text-red-900 dark:text-red-100'
-              }`}>
-                {otpToastType === 'success' ? 'OTP Sent!' : 'Error'}
-              </p>
-              <p className={`text-sm ${
-                otpToastType === 'success'
-                  ? 'text-emerald-700 dark:text-emerald-300'
-                  : 'text-red-700 dark:text-red-300'
-              }`}>
-                {otpToastMessage}
-              </p>
-            </div>
-            <button
-              onClick={() => setShowOtpToast(false)}
-              className={`p-1 rounded-lg transition-colors ${
-                otpToastType === 'success'
-                  ? 'hover:bg-emerald-100 dark:hover:bg-emerald-800'
-                  : 'hover:bg-red-100 dark:hover:bg-red-800'
-              }`}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+     {showOtpToast && (
+  <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[10000] animate-in slide-in-from-bottom-5 fade-in duration-300">
+    <div className={`
+      flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl backdrop-blur-xl border
+      ${otpToastType === 'success'
+        ? 'bg-emerald-50/95 dark:bg-emerald-900/95 border-emerald-200 dark:border-emerald-700'
+        : otpToastType === 'error'
+        ? 'bg-red-50/95 dark:bg-red-900/95 border-red-200 dark:border-red-700'
+        : 'bg-blue-50/95 dark:bg-blue-900/95 border-blue-200 dark:border-blue-700'
+      }
+    `}>
+      {otpToastType === 'success' ? (
+        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+      ) : otpToastType === 'error' ? (
+        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+      ) : (
+        <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
       )}
+      <div>
+        <p className={`font-semibold text-sm ${
+          otpToastType === 'success'
+            ? 'text-emerald-900 dark:text-emerald-100'
+            : otpToastType === 'error'
+            ? 'text-red-900 dark:text-red-100'
+            : 'text-blue-900 dark:text-blue-100'
+        }`}>
+          {otpToastType === 'success' ? 'OTP Sent!' : otpToastType === 'error' ? 'Error' : 'Info'}
+        </p>
+        <p className={`text-sm ${
+          otpToastType === 'success'
+            ? 'text-emerald-700 dark:text-emerald-300'
+            : otpToastType === 'error'
+            ? 'text-red-700 dark:text-red-300'
+            : 'text-blue-700 dark:text-blue-300'
+        }`}>
+          {otpToastMessage}
+        </p>
+      </div>
+      <button
+        onClick={() => setShowOtpToast(false)}
+        className={`p-1 rounded-lg transition-colors ${
+          otpToastType === 'success'
+            ? 'hover:bg-emerald-100 dark:hover:bg-emerald-800'
+            : otpToastType === 'error'
+            ? 'hover:bg-red-100 dark:hover:bg-red-800'
+            : 'hover:bg-blue-100 dark:hover:bg-blue-800'
+        }`}
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  </div>
+)}
     </div>
   );
 }

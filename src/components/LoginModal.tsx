@@ -166,9 +166,9 @@ await sendOTP(fullPhone);
     setError('');
 
     try {
-   const fullPhone = fullPhoneUsedForOTP || initialPhone || `+${selectedCountry!.phone_code}${phoneNumber}`;
-      const response = await verifyOTP(fullPhone, otp);
-      saveAuthData(response);
+const fullPhone = fullPhoneUsedForOTP || initialPhone || `+${selectedCountry!.phone_code}${phoneNumber}`;
+const response = await verifyOTP(fullPhone, otp);
+saveAuthData(response, fullPhone);  // PASS fullPhone as second argument
       
       // Show success toast
       setShowSuccessToast(true);
