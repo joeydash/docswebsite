@@ -1,5 +1,7 @@
 const GRAPHQL_ENDPOINT = 'https://db.vocallabs.ai/v1/graphql';
-const AUTH_ENDPOINT = "https://db.subspace.money/v1/graphql"
+const AUTH_ENDPOINT = "https://db.vocallabs.ai/v1/graphql"
+const RECAPTCHA_SITE_KEY = "6LeqQQAsAAAAAImTxeR-8ZzFxbMzkrXF3vUVS8vZ";
+
 export interface CountryCode {
   country_code: string;
   phone_code: string;
@@ -11,14 +13,14 @@ export interface CountryCodesResponse {
 }
 
 export interface RegisterResponse {
-  registerWithoutPasswordV2: {
+  registerWithoutPasswordV3: {
     request_id: string;
     status: string;
   };
 }
 
 export interface VerifyOTPResponse {
-  verifyOTPV2: {
+  verifyOTPV3: {
     auth_token: string;
     refresh_token: string;
     id: string;
@@ -38,8 +40,8 @@ const GET_COUNTRY_CODES = `
 `;
 
 const REGISTER_MUTATION = `
-  mutation Register($phone: String!) {
-    registerWithoutPasswordV2(credentials: {phone: $phone}) {
+  mutation RegisterV3($phone: String!, $recaptcha_token: String!) {
+    registerWithoutPasswordV3(credentials: {phone: $phone, recaptcha_token: $recaptcha_token}) {
       request_id
       status
     }
@@ -47,8 +49,8 @@ const REGISTER_MUTATION = `
 `;
 
 const VERIFY_OTP_MUTATION = `
-  mutation VerifyOTP($phone1: String!, $otp1: String!) {
-    verifyOTPV2(request: {otp: $otp1, phone: $phone1}) {
+  mutation VerifyOTPV3($phone1: String!, $otp1: String!) {
+    verifyOTPV3(request: {otp: $otp1, phone: $phone1}) {
       auth_token
       refresh_token
       id
@@ -77,7 +79,7 @@ export async function getCountryCodes(): Promise<CountryCode[]> {
   return data.data.vocallabs_exchange_rate;
 }
 
-export async function sendOTP(phone: string): Promise<{ request_id: string; status: string }> {
+export async function sendOTP(phone: string, recaptchaToken: string): Promise<{ request_id: string; status: string }> {
   // Ensure phone starts with + and remove any whitespace
   const cleanedPhone = phone.trim();
   const phoneNumber = cleanedPhone.startsWith('+') ? cleanedPhone : `+${cleanedPhone}`;
@@ -89,7 +91,7 @@ export async function sendOTP(phone: string): Promise<{ request_id: string; stat
     },
     body: JSON.stringify({
       query: REGISTER_MUTATION,
-      variables: { phone: phoneNumber },
+      variables: { phone: phoneNumber, recaptcha_token: recaptchaToken },
     }),
   });
 
@@ -98,10 +100,10 @@ export async function sendOTP(phone: string): Promise<{ request_id: string; stat
   }
 
   const data: { data: RegisterResponse } = await response.json();
-  return data.data.registerWithoutPasswordV2;
+  return data.data.registerWithoutPasswordV3;
 }
 
-export async function verifyOTP(phone: string, otp: string): Promise<VerifyOTPResponse['verifyOTPV2']> {
+export async function verifyOTP(phone: string, otp: string): Promise<VerifyOTPResponse['verifyOTPV3']> {
   // Ensure phone starts with + and remove any whitespace
   const cleanedPhone = phone.trim();
   const phoneNumber = cleanedPhone.startsWith('+') ? cleanedPhone : `+${cleanedPhone}`;
@@ -122,10 +124,14 @@ export async function verifyOTP(phone: string, otp: string): Promise<VerifyOTPRe
   }
 
   const data: { data: VerifyOTPResponse } = await response.json();
-  return data.data.verifyOTPV2;
+  return data.data.verifyOTPV3;
 }
 
-export function saveAuthData(data: VerifyOTPResponse['verifyOTPV2'], phone?: string) {
+export function getRecaptchaSiteKey(): string {
+  return RECAPTCHA_SITE_KEY;
+}
+
+export function saveAuthData(data: VerifyOTPResponse['verifyOTPV3'], phone?: string) {
   localStorage.setItem('auth_token', data.auth_token);
   localStorage.setItem('refresh_token', data.refresh_token);
   localStorage.setItem('user_id', data.id);

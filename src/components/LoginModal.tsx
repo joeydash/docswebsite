@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Phone, Lock, ChevronDown, Search, CheckCircle2 } from 'lucide-react';
-import { getCountryCodes, sendOTP, verifyOTP, saveAuthData, CountryCode } from '../services/auth';
+import { getCountryCodes, sendOTP, verifyOTP, saveAuthData, CountryCode, getRecaptchaSiteKey } from '../services/auth';
+
+// Extend window type to include grecaptcha
+declare global {
+  interface Window {
+    grecaptcha: {
+      ready: (callback: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+    };
+  }
+}
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -145,9 +155,13 @@ useEffect(() => {
     setError('');
 
     try {
-    const fullPhone = `+${selectedCountry.phone_code}${phoneNumber}`;
-setFullPhoneUsedForOTP(fullPhone);  // ADD THIS LINE
-await sendOTP(fullPhone);
+      const fullPhone = `+${selectedCountry.phone_code}${phoneNumber}`;
+      setFullPhoneUsedForOTP(fullPhone);
+      
+      // Get reCAPTCHA token
+      const recaptchaToken = await window.grecaptcha.execute(getRecaptchaSiteKey(), { action: 'login' });
+      
+      await sendOTP(fullPhone, recaptchaToken);
       setStep('otp');
     } catch (err) {
       setError('Failed to send OTP. Please try again.');
